@@ -744,14 +744,16 @@
         </div>
 
         <h3>Opening the App</h3>
-        <p>No installation or server required. Simply open <code>index.html</code> in any modern web browser — Chrome, Firefox, or Edge are recommended for the best experience. The entire application runs client-side in your browser.</p>
+        <p>ECO Command Center v2 requires a local Node.js backend to power web scraping, database persistence, and AI features.</p>
 
         <h3>First-Time Setup</h3>
-        <p>When you first launch the app, you'll be prompted to configure your preferences:</p>
         <ol class="steps">
-            <li><strong>Select your country</strong> — This sets your default market for trending products, supplier search, and platform fees. Supported countries include India, USA, UK, Germany, Japan, Australia, UAE, and more.</li>
-            <li><strong>Choose your currency</strong> — The app automatically selects the currency associated with your country, but you can override it anytime. Exchange rates are fetched and cached for offline use.</li>
-            <li><strong>Start exploring</strong> — Once your preferences are set, you're dropped into the Dashboard with all six tabs ready to go.</li>
+            <li><strong>Install Node.js:</strong> Ensure you have Node.js (v18+) installed on your machine.</li>
+            <li><strong>Install Dependencies:</strong> Open a terminal in the project directory and run <code>npm install</code>.</li>
+            <li><strong>Start Server:</strong> Run <code>node server.js</code> to start the backend on port 3000.</li>
+            <li><strong>Access the App:</strong> Open <a href="http://localhost:3000" target="_blank" style="color:var(--accent)">http://localhost:3000</a> in your browser.</li>
+            <li><strong>Configure API Keys:</strong> Click the Settings (⚙️) icon in the top right. Enter your NVIDIA NIM API keys for the primary (GLM-5.2) and fallback (MiniMax-M3) AI models. Keys are securely stored in your local SQLite database.</li>
+            <li><strong>Select Region:</strong> Choose your default country and currency in the top bar to localize pricing and supplier searches.</li>
         </ol>
 
         <h3>Overview of the 6 Main Tabs</h3>
@@ -779,6 +781,41 @@
             <div class="tip-label">💡 Tip</div>
             <p>Press number keys <kbd>1</kbd> through <kbd>6</kbd> on your keyboard to quickly switch between tabs from anywhere in the app.</p>
         </div>
+    </section>
+
+    <!-- ── 1.5 Architecture & Files ───────────────────────────── -->
+    <section class="section" id="architecture">
+        <div class="section-header">
+            <span class="section-num" style="background:var(--amber);color:#fff">★</span>
+            <h2>Codebase Architecture & Files</h2>
+        </div>
+
+        <p>The project uses a lightweight frontend communicating with an Express.js/SQLite backend to bypass CORS restrictions and securely store data.</p>
+        
+        <h3 style="margin-top:20px;">Backend (Server)</h3>
+        <ul style="margin-left: 20px; margin-bottom: 20px;">
+            <li><strong><code>server.js</code></strong>: The monolithic backend controller. Handles static file serving, SQLite database initialization, API routing, web scraping, AI orchestration, and the Deep Research feedback loop.</li>
+            <li><strong><code>db/sqlite.js</code></strong>: Database schema and connection logic for the persistent SQLite database (<code>eco.db</code>). Stores application settings and saved products.</li>
+        </ul>
+
+        <h3>Frontend (Client-Side Logic)</h3>
+        <p>All frontend scripts are located in the <code>/js/</code> directory:</p>
+        <ul style="margin-left: 20px; margin-bottom: 20px;">
+            <li><strong><code>app.js</code></strong>: Core initialization, routing logic, and Settings Modal logic for dual API keys.</li>
+            <li><strong><code>trending.js</code></strong>: Handles the trending product UI, infinite scroll, live saving, and triggering the Deep Research loop.</li>
+            <li><strong><code>search.js</code></strong>: Manages multi-platform search functionality and price comparison UI.</li>
+            <li><strong><code>dashboard.js</code></strong>: Computes global statistics and renders the overview charts.</li>
+            <li><strong><code>calculator.js</code></strong>: The complex financial logic for True Cost, Return Reserve, ROI, and break-even metrics.</li>
+            <li><strong><code>saved.js</code></strong>: Manages CRUD operations for the user's saved product database.</li>
+            <li><strong><code>chatbot.js</code></strong>: The frontend AI interface. Supports streaming and renders rich HTML product cards.</li>
+            <li><strong><code>competitor-tracker.js</code></strong> & <strong><code>suppliers.js</code></strong>: Specialized logic for pricing strategy and supplier discovery.</li>
+        </ul>
+
+        <h3>Styling & Layout</h3>
+        <ul style="margin-left: 20px;">
+            <li><strong><code>index.html</code></strong>: The single-page application (SPA) layout containing all section containers.</li>
+            <li><strong><code>css/styles.css</code></strong>: A premium dark-theme design system using CSS variables. Contains all styling for layout, animations, and rich chat cards.</li>
+        </ul>
     </section>
 
     <!-- ── 2. Dashboard ───────────────────────────────────── -->
