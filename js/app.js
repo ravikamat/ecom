@@ -340,7 +340,6 @@ async function initApp() {
   goTo('dashboard');
 
   // v2.2: Initialize AI Business Coach
-  if (typeof AICoach !== 'undefined') AICoach.init();
   if (typeof AIBusinessCoach !== 'undefined') {
     AIBusinessCoach.init();
     console.log('[App] AIBusinessCoach initialized ✓');

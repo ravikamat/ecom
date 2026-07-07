@@ -706,10 +706,11 @@ function updateSimulator() {
   else if (platform === 'flipkart') { pFee = newSp * 0.12; ship = 45; }
   else if (platform === 'own')    { pFee = newSp * 0.02; ship = 55; }
 
+  const itc      = document.getElementById('calc-itc')?.value || 'no';
   const inward   = parseFloat(document.getElementById('calc-inward')?.value || 0)  || 0;
   const gst      = parseFloat(document.getElementById('calc-gst')?.value || 18)    || 18;
   const gstCost  = baseCost * (gst / 100);
-  const landed   = baseCost + inward + gstCost;
+  const landed   = baseCost + inward + (itc === 'no' ? gstCost : 0);
 
   const retRes     = (retRate / 100) * newSp * 0.15 + (retRate > 0 ? 5 : 0);
   const misc       = parseFloat(document.getElementById('calc-misc')?.value || 4) || 4;
@@ -781,7 +782,7 @@ function findBestPrice() {
     if (platform === 'amazon')      { pFee = sp * 0.13; closing = 12; ship = 55; }
     else if (platform === 'flipkart') { pFee = sp * 0.12; ship = 45; }
     else if (platform === 'own')    { pFee = sp * 0.02; ship = 55; }
-    const retRes = (retRate / 100) * 20 + 5;
+    const retRes = (retRate / 100) * sp * 0.15 + (retRate > 0 ? 5 : 0);
     const total  = (baseCost||0) + (pack||0) + pFee + closing + ship + retRes + (adSpend||0) + (misc||4);
     const profit = sp - total;
     const monthly = profit * (daily||5) * 30;

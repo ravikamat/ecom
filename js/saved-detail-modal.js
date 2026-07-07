@@ -23,6 +23,18 @@ const SavedDetailModal = (function() {
       return;
     }
 
+    // Normalize property names for financial-engine and templates
+    currentProduct.sellingPrice = currentProduct.sp || currentProduct.sellingPrice || 0;
+    currentProduct.basePrice = currentProduct.cp || currentProduct.basePrice || 0;
+    currentProduct.costPrice = currentProduct.cp || currentProduct.costPrice || 0;
+    currentProduct.monthlyUnits = currentProduct.moq * 3 || currentProduct.monthlyUnits || 100;
+    currentProduct.dailySalesRate = currentProduct.dailySales || 3;
+    currentProduct.platformFees = currentProduct.platformFees || currentProduct.sellingPrice * 0.15;
+    currentProduct.shippingCost = currentProduct.shippingCost || 50;
+    currentProduct.packagingCost = currentProduct.packagingCost || 12;
+    currentProduct.adSpendMonthly = currentProduct.adSpendMonthly || 0;
+    currentProduct.returnRate = currentProduct.returnRate || 0.10;
+
     // Ensure financials are calculated
     if (!currentProduct.ebitda && typeof FinancialEngine !== 'undefined') {
       const analysis = FinancialEngine.analyzeProduct(currentProduct);
@@ -440,6 +452,45 @@ const SavedDetailModal = (function() {
           setTimeout(() => saveBtn.textContent = '💾 Save Listing', 2000);
         });
       }
+
+      // Ad Copy switcher
+      container.querySelectorAll('.ad-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          container.querySelectorAll('.ad-tab').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          _updateAdCopyDisplay(p, btn.dataset.ad);
+        });
+      });
+
+      // AI Ad Copy generator
+      const adcopyBtn = document.getElementById('btn-gen-adcopy');
+      if (adcopyBtn) {
+        adcopyBtn.addEventListener('click', async () => {
+          adcopyBtn.disabled = true;
+          adcopyBtn.textContent = 'Generating...';
+          if (typeof callNvidiaAI === 'function') {
+            const prompt = `Generate Google, Facebook, and Amazon PPC ad copies for: ${p.name}, Category: ${p.category}. Return JSON: {
+              "google": {"headline": "...", "description": "..."},
+              "facebook": {"primaryText": "...", "headline": "...", "description": "..."},
+              "amazon": {"headline": "...", "description": "..."}
+            }`;
+            try {
+              const res = await callNvidiaAI(prompt, 'You are an e-commerce copywriting expert.');
+              const data = JSON.parse(res);
+              p.adCopyGoogle = data.google || {};
+              p.adCopyFacebook = data.facebook || {};
+              p.adCopyAmazon = data.amazon || {};
+
+              const activeTab = container.querySelector('.ad-tab.active');
+              _updateAdCopyDisplay(p, activeTab ? activeTab.dataset.ad : 'google');
+            } catch (e) {
+              console.warn('AI adcopy generation failed:', e);
+            }
+          }
+          adcopyBtn.disabled = false;
+          adcopyBtn.textContent = 'Generate Ad Copy with AI';
+        });
+      }
     }, 50);
   }
 
@@ -612,6 +663,71 @@ const SavedDetailModal = (function() {
           }
         });
       });
+
+      // Bulk export CSV listener
+      const csvAllBtn = document.getElementById('btn-export-all-csv');
+      if (csvAllBtn) {
+        csvAllBtn.addEventListener('click', () => {
+          if (typeof exportFullCSV === 'function') {
+            exportFullCSV();
+          } else {
+            Toast.error('CSV export function not found');
+          }
+        });
+      }
+
+      // Catalog PDF listener
+      const pdfBtn = document.getElementById('btn-export-catalog-pdf');
+      if (pdfBtn) {
+        pdfBtn.addEventListener('click', () => {
+          const printWindow = window.open('', '_blank');
+          printWindow.document.write(`
+            <html>
+            <head>
+              <title>Product Catalog - ${escapeHtml(p.name)}</title>
+              <style>
+                body { font-family: system-ui, sans-serif; padding: 40px; color: #333; }
+                .header { border-bottom: 2px solid #6366f1; padding-bottom: 20px; margin-bottom: 20px; }
+                .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+                h1 { color: #6366f1; margin: 0; }
+                .price { font-size: 24px; font-weight: bold; color: #10b981; }
+                .section { margin-top: 30px; }
+                .section-title { font-weight: bold; font-size: 18px; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 10px; }
+              </style>
+            </head>
+            <body>
+              <div class="header">
+                <h1>${escapeHtml(p.name)}</h1>
+                <p>Category: ${escapeHtml(p.category) || 'General'} | Source: ${escapeHtml(p.source) || 'Discover'}</p>
+              </div>
+              <div class="grid">
+                <div>
+                  <div class="section-title">Pricing Details</div>
+                  <p>Selling Price: <span class="price">${escapeHtml(p.currency)} ${(p.sellingPrice || 0).toLocaleString()}</span></p>
+                  <p>Cost Price: ${escapeHtml(p.currency)} ${(p.costPrice || 0).toLocaleString()}</p>
+                  <p>Margin: ${p.margin}%</p>
+                  <p>MOQ: ${p.moq} units</p>
+                </div>
+                <div>
+                  <div class="section-title">Market Data</div>
+                  <p>Demand Score: ${p.demand}/100</p>
+                  <p>Winner Score: ${p.winner_score}/100</p>
+                  <p>Trend Status: ${escapeHtml(p.trend_status)}</p>
+                </div>
+              </div>
+              <div class="section">
+                <div class="section-title">Notes & Details</div>
+                <p>${escapeHtml(p.note) || 'No notes added yet.'}</p>
+              </div>
+              <script>
+                window.onload = function() { window.print(); }
+              </script>
+            </body>
+            </html>
+          `);
+          printWindow.document.close();
+        });
+      }
     }, 50);
   }
 
@@ -632,8 +748,31 @@ const SavedDetailModal = (function() {
     });
 
     // Edit
-    document.getElementById('modal-edit-btn').addEventListener('click', () => {
-      console.log('Edit product:', currentProduct.id);
+    document.getElementById('modal-edit-btn').addEventListener('click', async () => {
+      const newSp = prompt('Change Selling Price:', currentProduct.sp || currentProduct.sellingPrice);
+      if (newSp === null) return;
+      const newCp = prompt('Change Cost Price (Base):', currentProduct.cp || currentProduct.basePrice);
+      if (newCp === null) return;
+      const newMoq = prompt('Change MOQ:', currentProduct.moq);
+      if (newMoq === null) return;
+      const newNote = prompt('Change Note:', currentProduct.note);
+      if (newNote === null) return;
+
+      const updates = {
+        sp: parseFloat(newSp) || 0,
+        cp: parseFloat(newCp) || 0,
+        moq: parseInt(newMoq) || 50,
+        note: newNote
+      };
+
+      if (window.db && window.db.saved) {
+        await window.db.saved.update(currentProduct.id, updates);
+        Toast.success('Product updated!');
+        close();
+        if (typeof renderSaved === 'function') {
+          renderSaved();
+        }
+      }
     });
 
     // Delete
@@ -643,8 +782,8 @@ const SavedDetailModal = (function() {
           await window.db.products.delete(currentProduct.id);
         }
         close();
-        if (typeof window.renderSavedList === 'function') {
-          window.renderSavedList();
+        if (typeof renderSaved === 'function') {
+          renderSaved();
         }
       }
     });
@@ -661,6 +800,42 @@ const SavedDetailModal = (function() {
   }
 
   // ─── Helpers ───
+  function _updateAdCopyDisplay(p, type) {
+    const container = document.getElementById('ad-copy-content');
+    if (!container) return;
+
+    if (type === 'google') {
+      container.innerHTML = `
+        <div class="ad-preview">
+          <div class="ad-headline">${p.adCopyGoogle?.headline || p.name}</div>
+          <div class="ad-desc">${p.adCopyGoogle?.description || p.description?.substring(0, 90) || ''}</div>
+          <div class="ad-url">www.yourstore.com/${(p.name || '').replace(/\s+/g, '-').toLowerCase()}</div>
+        </div>`;
+    } else if (type === 'facebook') {
+      container.innerHTML = `
+        <div class="ad-preview fb-preview">
+          <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:4px;">Sponsored</div>
+          <div class="ad-desc" style="font-size:14px;margin-bottom:8px;">${p.adCopyFacebook?.primaryText || p.description || ''}</div>
+          <div style="border:1px solid var(--border);border-radius:4px;overflow:hidden;background:var(--surface);">
+            <div style="height:120px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;color:var(--accent);font-weight:bold;">Ad Creative Image</div>
+            <div style="padding:8px;">
+              <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;">${p.platform || 'Facebook'}</div>
+              <div class="ad-headline" style="font-size:14px;font-weight:bold;">${p.adCopyFacebook?.headline || p.name}</div>
+              <div class="ad-desc" style="font-size:12px;color:var(--text-tertiary);">${p.adCopyFacebook?.description || ''}</div>
+            </div>
+          </div>
+        </div>`;
+    } else if (type === 'amazon') {
+      container.innerHTML = `
+        <div class="ad-preview">
+          <div class="ad-headline" style="color:var(--warning);font-size:13px;font-weight:600;text-transform:uppercase;">Sponsored</div>
+          <div class="ad-headline" style="font-size:15px;font-weight:bold;margin:4px 0;">${p.adCopyAmazon?.headline || p.name}</div>
+          <div class="ad-desc" style="font-size:13px;">${p.adCopyAmazon?.description || p.description?.substring(0, 120) || ''}</div>
+          <div style="margin-top:6px;font-size:12px;color:var(--text-tertiary);">★★★★★ (100+)</div>
+        </div>`;
+    }
+  }
+
   function escapeHtml(str) {
     if (!str) return '';
     return String(str)

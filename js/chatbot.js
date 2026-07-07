@@ -263,7 +263,7 @@ const Chatbot = {
       }
 
       // Price comparisons
-      const comparisons = data.comparisons || data.prices;
+      const comparisons = data.comparisons || data.prices || data.results;
       if (Array.isArray(comparisons) && comparisons.length > 0 && (comparisons[0].platform || comparisons[0].source)) {
         return `
           <table class="chat-price-table">

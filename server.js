@@ -24,7 +24,8 @@ import {
   dbGetRates, dbSetRates, dbGetProductDetail, dbSaveProductDetail,
   dbGetScrapeCache, dbSetScrapeCache, dbGetUrlLookup, dbSaveUrlLookup,
   dbGetListings, dbUpsertListing, dbMigrateFromClient,
-  dbGetProducts, dbGetProductById, dbGetSuppliers, dbGetSupplierById, dbGetPlatforms
+  dbGetProducts, dbGetProductById, dbGetSuppliers, dbGetSupplierById, dbGetPlatforms,
+  dbGetDashboardStats, dbResetDatabase
 } from './db/sqlite.js';
 
 import { SupplierDiscoveryEngine } from './src/supplier-discovery-engine.js';
@@ -220,6 +221,8 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/db/settings'         && req.method === 'GET')    return handleDBGetSettings(req, res);
   if (pathname === '/api/db/settings'         && req.method === 'POST')   return handleDBSetSetting(req, res);
   if (pathname === '/api/db/migrate'          && req.method === 'POST')   return handleDBMigrate(req, res);
+  if (pathname === '/api/db/dashboard-stats'  && req.method === 'GET')    return handleDBDashboardStats(req, res);
+  if (pathname === '/api/scrape/competitor'   && req.method === 'GET')    return handleScrapeCompetitor(req, res);
   if (pathname === '/api/db/rates'            && req.method === 'GET')    return handleDBGetRates(req, res);
   if (pathname === '/api/db/rates'            && req.method === 'POST')   return handleDBSetRates(req, res);
   if (pathname.startsWith('/api/db/listings/') && req.method === 'GET')   return handleDBGetListings(req, res, pathname);
@@ -1680,8 +1683,80 @@ async function handleDBPinSaved(req, res, pathname) {
 }
 
 async function handleDBClear(req, res) {
-  try { dbClearUnpinned(); jsonOk(res, { success: true }); }
-  catch(e) { jsonErr(res, e.message, 500); }
+  try {
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', () => {
+      try {
+        let parsed = {};
+        if (body) parsed = JSON.parse(body);
+        if (parsed.type === 'all') {
+          dbResetDatabase();
+        } else {
+          dbClearUnpinned();
+        }
+        jsonOk(res, { success: true });
+      } catch(e) { jsonErr(res, e.message, 500); }
+    });
+  } catch(e) { jsonErr(res, e.message, 500); }
+}
+
+async function handleDBDashboardStats(req, res) {
+  try {
+    const stats = dbGetDashboardStats();
+    jsonOk(res, stats);
+  } catch(e) { jsonErr(res, e.message, 500); }
+}
+
+async function handleScrapeCompetitor(req, res) {
+  try {
+    const reqUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const url = reqUrl.searchParams.get('url');
+    if (!url) return jsonErr(res, 'url parameter required', 400);
+
+    // Validate URL
+    let parsedUrl;
+    try { parsedUrl = new URL(url); } catch { return jsonErr(res, 'Invalid URL', 400); }
+
+    // Detect platform
+    const host     = parsedUrl.hostname.toLowerCase();
+    const platform =
+      host.includes('amazon')   ? 'Amazon' :
+      host.includes('flipkart') ? 'Flipkart' :
+      host.includes('meesho')   ? 'Meesho' :
+      host.includes('ebay')     ? 'eBay' :
+      host.includes('etsy')     ? 'Etsy' :
+      host.includes('walmart')  ? 'Walmart' :
+      host.includes('myntra')   ? 'Myntra' :
+      host.includes('snapdeal') ? 'Snapdeal' :
+      host.includes('nykaa')    ? 'Nykaa' :
+      host.includes('jiomart')  ? 'JioMart' :
+      host.includes('alibaba')  ? 'Alibaba' :
+      host.includes('aliexpress') ? 'AliExpress' :
+      host.includes('indiamart') ? 'IndiaMart' :
+      host.includes('justdial') ? 'JustDial' : 'Web';
+
+    const pageContent = await fetchPageContent(url);
+    const product = await extractProductFromPage(url, pageContent, platform);
+
+    if (product) {
+      jsonOk(res, {
+        price: product.price || 0,
+        currency: product.currency || 'INR',
+        stockStatus: product.inStock ? 'instock' : 'outofstock',
+        rating: product.rating || null,
+        reviewCount: product.reviews || null,
+        seller: product.seller || null,
+        isPrime: url.includes('prime') || false,
+        isFBA: false,
+        buyBoxWinner: true
+      });
+    } else {
+      jsonErr(res, 'Could not scrape competitor details', 422);
+    }
+  } catch(e) {
+    jsonErr(res, e.message, 500);
+  }
 }
 
 async function handleDBGetSettings(req, res) {

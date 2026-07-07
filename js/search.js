@@ -346,7 +346,7 @@ document.addEventListener('click', async function(e) {
   const btn = e.target.closest('[data-action="save-search"]');
   if (!btn) return;
   const id = parseInt(btn.dataset.productId);
-  const product = await db.products.get(id);
+  const product = await getLocalProductById(id);
   if (!product) return;
   const r = await addSaved({ name: product.name, country: product.country, category: product.category, sp: product.supplierPrice, currency: product.currency, margin: product.margin || 0, source: 'search' });
   if (r.success) { Toast.success(`Saved "${product.name}"`); btn.textContent = '✓'; btn.disabled = true; }

@@ -1135,7 +1135,7 @@ document.addEventListener('click', async function(e) {
   const trendBtn = e.target.closest('[data-action="save-trend"]');
   if (trendBtn) {
     const id      = parseInt(trendBtn.dataset.id);
-    const product = await db.products.get(id);
+    const product = await getLocalProductById(id);
     if (!product) return;
     const r = await addSaved({ name: product.name, country: product.country, category: product.category, margin: product.margin, sp: product.supplierPrice, currency: product.currency, source: 'trending' });
     if (r.success) { Toast.success(`Saved "${product.name}"`); trendBtn.textContent = '✓'; trendBtn.disabled = true; }

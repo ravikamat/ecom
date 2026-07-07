@@ -212,8 +212,11 @@ const FinancialEngine = (function() {
       const grossProfit = revenue - cogs;
       const opex = base.fixedCosts;
       const ebitda = grossProfit - opex;
-      const tax = Math.max(0, ebitda * (product.taxRate || 0.18));
-      const netProfit = ebitda - tax - (product.depreciationMonthly || 0) - (product.loanInterest || 0);
+      const depreciation = product.depreciationMonthly || 0;
+      const interest = product.loanInterest || 0;
+      const taxableIncome = Math.max(0, ebitda - depreciation - interest);
+      const tax = taxableIncome * (product.taxRate || 0.18);
+      const netProfit = ebitda - tax - depreciation - interest;
       pl.push({
         month: i + 1,
         monthName: new Date(2026, i, 1).toLocaleString('en', { month: 'short' }),
@@ -241,9 +244,9 @@ const FinancialEngine = (function() {
     const cf = [];
     let cashBalance = product.initialCash || base.workingCapital;
     for (let i = 0; i < weeks; i++) {
-      const inflow = base.monthlyNetCashFlow / 4.33;
-      const outflow = (base.cogs / 12) / 4.33 + (base.fixedCosts / 4.33);
-      const netFlow = inflow - outflow;
+      const inflow = base.revenue / 4.33;
+      const netFlow = base.monthlyNetCashFlow / 4.33;
+      const outflow = inflow - netFlow;
       cashBalance += netFlow;
       cf.push({
         week: i + 1,

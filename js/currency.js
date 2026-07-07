@@ -81,14 +81,17 @@ const CurrencyEngine = {
   },
 
   getSymbol(currencyCode) {
-    return getCurrencyConfig(currencyCode).symbol;
+    if (typeof getCurrencyConfig === 'function') {
+      return getCurrencyConfig(currencyCode).symbol;
+    }
+    return currencyCode + ' ';
   },
 
   format(amount, currencyCode) {
-    const config = getCurrencyConfig(currencyCode);
+    const config = typeof getCurrencyConfig === 'function' ? getCurrencyConfig(currencyCode) : { symbol: currencyCode + ' ', locale: 'en-US', decimals: 2 };
     const formatted = Number(amount).toLocaleString(config.locale, {
-      minimumFractionDigits: config.decimals,
-      maximumFractionDigits: config.decimals,
+      minimumFractionDigits: config.decimals || 0,
+      maximumFractionDigits: config.decimals || 0,
     });
     return `${config.symbol}${formatted}`;
   },

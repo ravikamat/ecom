@@ -95,6 +95,7 @@ function initSchema(db) {
       demand           INTEGER DEFAULT 50,
       winner_score     INTEGER DEFAULT 0,
       moq              INTEGER DEFAULT 50,
+      daily_sales      INTEGER DEFAULT 5,
       trend_status     TEXT    DEFAULT 'active',
       trend_flagged_at TEXT,
       source           TEXT    DEFAULT 'trending',
@@ -182,6 +183,10 @@ function initSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_listings_prod   ON product_listings(saved_product_id);
   `);
 
+  try {
+    db.exec("ALTER TABLE saved_products ADD COLUMN daily_sales INTEGER DEFAULT 5");
+  } catch(e) {}
+
   // Auto-seed database from data-seed.js if empty
   try {
     const prodCount = db.prepare('SELECT count(*) as count FROM products').get().count;
@@ -266,8 +271,8 @@ export function dbInsertSaved(item) {
   if (existing) return { success: false, id: existing.id, message: 'Already saved' };
 
   const stmt = db.prepare(`INSERT INTO saved_products
-    (name,category,platform,country,sp,cp,currency,margin,demand,winner_score,moq,source,note,trend_status,saved_at,updated_at)
-    VALUES (:name,:category,:platform,:country,:sp,:cp,:currency,:margin,:demand,:winner_score,:moq,:source,:note,:trend_status,datetime('now'),datetime('now'))`);
+    (name,category,platform,country,sp,cp,currency,margin,demand,winner_score,moq,daily_sales,source,note,trend_status,saved_at,updated_at)
+    VALUES (:name,:category,:platform,:country,:sp,:cp,:currency,:margin,:demand,:winner_score,:moq,:daily_sales,:source,:note,:trend_status,datetime('now'),datetime('now'))`);
   const res = stmt.run({
     name:         item.name || '',
     category:     item.category || '',
@@ -280,6 +285,7 @@ export function dbInsertSaved(item) {
     demand:       item.demand || 50,
     winner_score: item.winnerScore || item.winner_score || 0,
     moq:          item.moq || 50,
+    daily_sales:  item.dailySales || item.daily_sales || 5,
     source:       item.source || 'trending',
     note:         item.note || '',
     trend_status: item.trendStatus || 'active',
@@ -290,12 +296,12 @@ export function dbInsertSaved(item) {
 export function dbUpdateSaved(id, updates) {
   const db = getDB();
   const allowed = ['name','category','platform','country','sp','cp','currency','margin',
-                   'demand','winner_score','moq','source','note','pinned','trend_status',
+                   'demand','winner_score','moq','daily_sales','source','note','pinned','trend_status',
                    'trend_flagged_at','last_auto_refresh'];
   const sets = [];
   const params = { id };
   for (const [k, v] of Object.entries(updates)) {
-    const col = k === 'winnerScore' ? 'winner_score' : k === 'trendStatus' ? 'trend_status' : k;
+    const col = k === 'winnerScore' ? 'winner_score' : k === 'trendStatus' ? 'trend_status' : k === 'dailySales' ? 'daily_sales' : k;
     if (allowed.includes(col)) { sets.push(`${col} = :${col}`); params[col] = v; }
   }
   if (!sets.length) return;
@@ -509,5 +515,49 @@ export function dbGetPlatforms(country) {
     return db.prepare('SELECT * FROM platforms WHERE country = ?').all(country);
   }
   return db.prepare('SELECT * FROM platforms').all();
+}
+
+/* ── DASHBOARD STATS ─────────────────────────────────────── */
+export function dbGetDashboardStats() {
+  const db = getDB();
+  const savedCount = db.prepare('SELECT COUNT(*) AS count FROM saved_products').get().count;
+  const supplierCount = db.prepare('SELECT COUNT(*) AS count FROM suppliers').get().count;
+  const avgMarginRow = db.prepare('SELECT AVG(margin) AS avg FROM saved_products').get();
+  const avgMargin = avgMarginRow && avgMarginRow.avg !== null ? Math.round(avgMarginRow.avg) : 0;
+  
+  // Calculate totalCapital by fetching all saved products and doing a rough unit economics sum
+  const products = db.prepare('SELECT cp, sp, moq FROM saved_products').all();
+  let totalCapital = 0;
+  products.forEach(p => {
+    const cp = p.cp || 0;
+    const sp = p.sp || 0;
+    const moq = p.moq || 30;
+    const landed = cp * 1.15;
+    const itemCapital = landed * moq + (sp * moq * 0.3);
+    totalCapital += itemCapital;
+  });
+
+  return {
+    savedCount,
+    supplierCount,
+    avgMargin,
+    totalCapital
+  };
+}
+
+/* ── RESET DATABASE ───────────────────────────────────────── */
+export function dbResetDatabase() {
+  const db = getDB();
+  db.prepare('DELETE FROM saved_products').run();
+  db.prepare('DELETE FROM settings').run();
+  db.prepare('DELETE FROM products').run();
+  db.prepare('DELETE FROM suppliers').run();
+  db.prepare('DELETE FROM platforms').run();
+  db.prepare('DELETE FROM exchange_rates').run();
+  db.prepare('DELETE FROM product_details').run();
+  db.prepare('DELETE FROM product_listings').run();
+  db.prepare('DELETE FROM scrape_cache').run();
+  db.prepare('DELETE FROM url_lookups').run();
+  db.prepare('DELETE FROM search_history').run();
 }
 

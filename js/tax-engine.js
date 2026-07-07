@@ -193,8 +193,10 @@ const TaxEngine = (function() {
       }
     }
 
-    // AI fallback
-    return aiSuggestHSN(productName, category);
+    // Fallback: hash-based deterministic
+    const hash = text.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+    const fallbackHSN = 1000 + (hash % 9000);
+    return { hsn: String(fallbackHSN), gst: 18, description: 'General merchandise', confidence: 'low', source: 'fallback' };
   }
 
   async function aiSuggestHSN(productName, category) {

@@ -177,7 +177,11 @@ async function clearUnpinned() {
 
 async function resetDatabase() {
   try {
-    await fetch('/api/db/clear', { method: 'POST' });
+    await fetch('/api/db/clear', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'all' })
+    });
     // Clear all localStorage entries for this app
     const keysToRemove = Object.keys(localStorage).filter(k =>
       k.startsWith('eco_') || k === 'nvidia_api_key' || k === '_settingsCache'
@@ -189,6 +193,24 @@ async function resetDatabase() {
     console.error('[DB] Reset failed:', e.message);
     if (typeof Toast !== 'undefined') Toast.error('Reset failed: ' + e.message);
   }
+}
+
+async function getDashboardStats() {
+  try {
+    const res = await fetch('/api/db/dashboard-stats');
+    if (!res.ok) throw new Error('Failed to fetch stats');
+    return await res.json();
+  } catch(e) {
+    console.warn('[getDashboardStats] Error:', e.message);
+    return { savedCount: 0, supplierCount: 0, avgMargin: 0, totalCapital: 0 };
+  }
+}
+
+async function getLocalProductById(id) {
+  try {
+    const res = await fetch(`/api/db/products/${id}`);
+    return res.ok ? await res.json() : null;
+  } catch { return null; }
 }
 
 /* ── EXCHANGE RATES ───────────────────────────────────────── */
@@ -507,6 +529,8 @@ window.setSetting    = setSetting;
 window.getProducts   = getProducts;
 window.getSuppliers  = getSuppliers;
 window.getPlatforms  = getPlatforms;
+window.getDashboardStats = getDashboardStats;
+window.getLocalProductById = getLocalProductById;
 window.autoRefreshSavedProducts = autoRefreshSavedProducts;
 window.refreshSavedProductDetail = refreshSavedProductDetail;
 window.getProductListings       = getProductListings;
