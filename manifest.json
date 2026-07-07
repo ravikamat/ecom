@@ -1,0 +1,37 @@
+{
+  "name": "Solo E-Commerce Command Center",
+  "short_name": "ECO Command",
+  "description": "AI-powered e-commerce product research, cost calculator, and supplier finder for 20+ countries",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f0f",
+  "theme_color": "#1a1a1a",
+  "orientation": "any",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Trending Products",
+      "url": "/?page=trending",
+      "description": "See what's trending now"
+    },
+    {
+      "name": "Cost Calculator",
+      "url": "/?page=calculator",
+      "description": "Calculate profit margins"
+    }
+  ]
+}

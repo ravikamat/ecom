@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Manual — Solo E-Commerce Command Center v2</title>
+    <meta name="description" content="Complete user manual and documentation for the Solo E-Commerce Command Center v2. Learn how to use every feature including the dashboard, trending products, cost calculator, and AI-powered insights.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ── Reset & Base ─────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-card: #12121a;
+            --bg-card-hover: #1a1a26;
+            --border-color: #1e1e2e;
+            --border-subtle: #16161f;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --accent-dim: rgba(99, 102, 241, 0.15);
+            --accent-glow: rgba(99, 102, 241, 0.25);
+            --green: #22c55e;
+            --amber: #f59e0b;
+            --red: #ef4444;
+            --sidebar-width: 260px;
+            --header-height: 56px;
+            --radius: 10px;
+            --radius-sm: 6px;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 80px;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.7;
+            font-size: 15px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* ── Header / Top Bar ─────────────────────────────────── */
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: var(--header-height);
+            background: rgba(10, 10, 15, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 1000;
+        }
+
+        .top-bar-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .hamburger {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            padding: 6px;
+            border-radius: var(--radius-sm);
+            transition: background var(--transition);
+        }
+        .hamburger:hover { background: var(--accent-dim); }
+        .hamburger svg { width: 22px; height: 22px; }
+
+        .top-bar-logo {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .top-bar-logo .logo-icon {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 800;
+            color: #fff;
+        }
+        .top-bar-badge {
+            font-size: 10px;
+            font-weight: 600;
+            background: var(--accent-dim);
+            color: var(--accent);
+            padding: 2px 8px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 6px 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            transition: all var(--transition);
+        }
+        .back-link:hover {
+            background: var(--accent-dim);
+            border-color: var(--accent);
+        }
+
+        /* ── Sidebar TOC ──────────────────────────────────────── */
+        .sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            bottom: 0;
+            width: var(--sidebar-width);
+            background: var(--bg-card);
+            border-right: 1px solid var(--border-color);
+            overflow-y: auto;
+            padding: 20px 0;
+            z-index: 900;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar::-webkit-scrollbar { width: 4px; }
+        .sidebar::-webkit-scrollbar-track { background: transparent; }
+        .sidebar::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+
+        .sidebar-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--text-muted);
+            padding: 0 20px 12px;
+        }
+
+        .toc-list { list-style: none; }
+
+        .toc-item a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 20px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 450;
+            transition: all var(--transition);
+            border-left: 3px solid transparent;
+        }
+
+        .toc-item a:hover {
+            color: var(--text-primary);
+            background: rgba(255,255,255,0.03);
+        }
+
+        .toc-item a.active {
+            color: var(--accent);
+            background: var(--accent-dim);
+            border-left-color: var(--accent);
+            font-weight: 600;
+        }
+
+        .toc-num {
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            background: var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--text-muted);
+            flex-shrink: 0;
+            transition: all var(--transition);
+        }
+
+        .toc-item a.active .toc-num,
+        .toc-item a:hover .toc-num {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 899;
+        }
+
+        /* ── Main Content ─────────────────────────────────────── */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            padding: 40px 48px 80px;
+            max-width: 880px;
+        }
+
+        /* ── Hero Section ─────────────────────────────────────── */
+        .hero {
+            text-align: center;
+            padding: 48px 24px 56px;
+            margin-bottom: 48px;
+            border-radius: var(--radius);
+            background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(168,85,247,0.06));
+            border: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 30% 40%, rgba(99,102,241,0.08) 0%, transparent 60%);
+            pointer-events: none;
+        }
+        .hero h1 {
+            font-size: 32px;
+            font-weight: 800;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent-hover));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero p {
+            font-size: 15px;
+            color: var(--text-secondary);
+            max-width: 480px;
+            margin: 0 auto;
+        }
+        .hero-version {
+            display: inline-block;
+            margin-top: 16px;
+            padding: 4px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent);
+            background: var(--accent-dim);
+            border-radius: 20px;
+        }
+
+        /* ── Section Styles ───────────────────────────────────── */
+        .section {
+            margin-bottom: 56px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .section-num {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            font-weight: 800;
+            color: #fff;
+            flex-shrink: 0;
+        }
+
+        h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        h3 {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 28px 0 12px;
+        }
+
+        h4 {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--accent-hover);
+            margin: 20px 0 8px;
+        }
+
+        p {
+            color: var(--text-secondary);
+            margin-bottom: 14px;
+        }
+
+        /* ── Lists ────────────────────────────────────────────── */
+        ul, ol {
+            color: var(--text-secondary);
+            padding-left: 24px;
+            margin-bottom: 16px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        li strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        /* ── Cards / Panels ───────────────────────────────────── */
+        .info-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 20px 24px;
+            margin-bottom: 16px;
+            transition: border-color var(--transition);
+        }
+        .info-card:hover {
+            border-color: #2a2a3e;
+        }
+
+        .info-card h4 {
+            margin-top: 0;
+            margin-bottom: 8px;
+        }
+
+        .info-card p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* ── Tip Boxes ────────────────────────────────────────── */
+        .tip-box {
+            background: var(--accent-dim);
+            border-left: 4px solid var(--accent);
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            padding: 14px 18px;
+            margin: 18px 0;
+            font-size: 14px;
+        }
+        .tip-box .tip-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--accent);
+            margin-bottom: 6px;
+        }
+        .tip-box p {
+            color: var(--text-secondary);
+            margin-bottom: 0;
+            font-size: 14px;
+        }
+
+        .warning-box {
+            background: rgba(245, 158, 11, 0.08);
+            border-left: 4px solid var(--amber);
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            padding: 14px 18px;
+            margin: 18px 0;
+            font-size: 14px;
+        }
+        .warning-box .tip-label {
+            color: var(--amber);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-bottom: 6px;
+        }
+        .warning-box p {
+            color: var(--text-secondary);
+            margin-bottom: 0;
+            font-size: 14px;
+        }
+
+        /* ── KBD Tags ─────────────────────────────────────────── */
+        kbd {
+            display: inline-block;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-bottom-width: 2px;
+            border-radius: 5px;
+            padding: 2px 8px;
+            font-family: 'Inter', monospace;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+            line-height: 1.6;
+        }
+
+        /* ── Inline code ──────────────────────────────────────── */
+        code {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 13px;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            color: var(--accent-hover);
+        }
+
+        /* ── Tables ───────────────────────────────────────────── */
+        .table-wrap {
+            overflow-x: auto;
+            margin: 16px 0;
+            border-radius: var(--radius);
+            border: 1px solid var(--border-color);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        thead {
+            background: var(--bg-card);
+        }
+
+        th {
+            text-align: left;
+            padding: 12px 16px;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        td {
+            padding: 10px 16px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        tr:last-child td { border-bottom: none; }
+
+        tr:hover td {
+            background: rgba(255,255,255,0.015);
+        }
+
+        /* ── Shortcuts Grid ───────────────────────────────────── */
+        .shortcut-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 12px;
+            margin: 16px 0;
+        }
+
+        .shortcut-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+        }
+
+        .shortcut-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* ── Step List ────────────────────────────────────────── */
+        .steps {
+            counter-reset: step;
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .steps li {
+            counter-increment: step;
+            position: relative;
+            padding-left: 44px;
+            margin-bottom: 18px;
+        }
+
+        .steps li::before {
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            top: 2px;
+            width: 28px;
+            height: 28px;
+            background: var(--accent-dim);
+            color: var(--accent);
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* ── FAQ Accordion ────────────────────────────────────── */
+        .faq-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+
+        .faq-question {
+            width: 100%;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: left;
+            padding: 16px 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            transition: background var(--transition);
+        }
+        .faq-question:hover { background: rgba(255,255,255,0.02); }
+
+        .faq-chevron {
+            flex-shrink: 0;
+            width: 18px;
+            height: 18px;
+            color: var(--text-muted);
+            transition: transform 0.3s ease;
+        }
+
+        .faq-item.open .faq-chevron {
+            transform: rotate(180deg);
+        }
+
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.35s ease;
+        }
+
+        .faq-answer-inner {
+            padding: 0 20px 16px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .faq-item.open .faq-answer {
+            max-height: 400px;
+        }
+
+        /* ── Footer ───────────────────────────────────────────── */
+        .manual-footer {
+            text-align: center;
+            padding: 32px 0;
+            margin-top: 48px;
+            border-top: 1px solid var(--border-color);
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        .manual-footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        .manual-footer a:hover { text-decoration: underline; }
+
+        /* ── Links ────────────────────────────────────────────── */
+        a { color: var(--accent); }
+        a:hover { color: var(--accent-hover); }
+
+        /* ── Responsive ───────────────────────────────────────── */
+        @media (max-width: 768px) {
+            .hamburger { display: flex; }
+
+            .sidebar {
+                transform: translateX(-100%);
+                width: 280px;
+            }
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .sidebar-overlay.open {
+                display: block;
+            }
+
+            .main-content {
+                margin-left: 0;
+                padding: 28px 18px 60px;
+            }
+
+            .hero h1 { font-size: 24px; }
+            .hero { padding: 32px 16px 36px; }
+            h2 { font-size: 19px; }
+            h3 { font-size: 16px; }
+
+            .shortcut-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .section-header {
+                gap: 10px;
+            }
+
+            .section-num {
+                width: 32px;
+                height: 32px;
+                font-size: 13px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .top-bar { padding: 0 14px; }
+            .top-bar-badge { display: none; }
+            .back-link span { display: none; }
+        }
+
+        /* ── Scroll progress ──────────────────────────────────── */
+        .scroll-progress {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--border-color);
+            z-index: 999;
+        }
+        .scroll-progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent), #a855f7);
+            transition: width 0.1s linear;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ═══ Top Bar ═══════════════════════════════════════════════ -->
+<header class="top-bar">
+    <div class="top-bar-left">
+        <button class="hamburger" onclick="toggleSidebar()" aria-label="Toggle menu">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+            </svg>
+        </button>
+        <a href="index.html" class="top-bar-logo">
+            <span class="logo-icon">E</span>
+            <span>Command Center</span>
+        </a>
+        <span class="top-bar-badge">User Manual</span>
+    </div>
+    <a href="index.html" class="back-link">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+        <span>Back to App</span>
+    </a>
+</header>
+
+<!-- ═══ Scroll Progress ══════════════════════════════════════ -->
+<div class="scroll-progress">
+    <div class="scroll-progress-bar" id="progressBar"></div>
+</div>
+
+<!-- ═══ Sidebar / TOC ════════════════════════════════════════ -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+<nav class="sidebar" id="sidebar">
+    <div class="sidebar-title">Table of Contents</div>
+    <ul class="toc-list">
+        <li class="toc-item"><a href="#getting-started"><span class="toc-num">1</span>Getting Started</a></li>
+        <li class="toc-item"><a href="#dashboard"><span class="toc-num">2</span>Dashboard</a></li>
+        <li class="toc-item"><a href="#trending-products"><span class="toc-num">3</span>Trending Products</a></li>
+        <li class="toc-item"><a href="#search-compare"><span class="toc-num">4</span>Search &amp; Compare</a></li>
+        <li class="toc-item"><a href="#supplier-finder"><span class="toc-num">5</span>Supplier Finder</a></li>
+        <li class="toc-item"><a href="#cost-calculator"><span class="toc-num">6</span>Cost Calculator</a></li>
+        <li class="toc-item"><a href="#saved-list"><span class="toc-num">7</span>Saved List</a></li>
+        <li class="toc-item"><a href="#country-currency"><span class="toc-num">8</span>Country &amp; Currency</a></li>
+        <li class="toc-item"><a href="#ai-features"><span class="toc-num">9</span>AI Features</a></li>
+        <li class="toc-item"><a href="#keyboard-shortcuts"><span class="toc-num">10</span>Keyboard Shortcuts</a></li>
+        <li class="toc-item"><a href="#faq"><span class="toc-num">11</span>FAQ &amp; Troubleshooting</a></li>
+    </ul>
+</nav>
+
+<!-- ═══ Main Content ═════════════════════════════════════════ -->
+<main class="main-content">
+
+    <!-- Hero -->
+    <div class="hero">
+        <h1>Solo E-Commerce Command Center v2</h1>
+        <p>Your all-in-one toolkit for product research, supplier sourcing, cost analysis, and AI-driven insights — right in your browser.</p>
+        <span class="hero-version">Version 2.0 — User Manual</span>
+    </div>
+
+    <!-- ── 1. Getting Started ─────────────────────────────── -->
+    <section class="section" id="getting-started">
+        <div class="section-header">
+            <span class="section-num">1</span>
+            <h2>Getting Started</h2>
+        </div>
+
+        <h3>Opening the App</h3>
+        <p>No installation or server required. Simply open <code>index.html</code> in any modern web browser — Chrome, Firefox, or Edge are recommended for the best experience. The entire application runs client-side in your browser.</p>
+
+        <h3>First-Time Setup</h3>
+        <p>When you first launch the app, you'll be prompted to configure your preferences:</p>
+        <ol class="steps">
+            <li><strong>Select your country</strong> — This sets your default market for trending products, supplier search, and platform fees. Supported countries include India, USA, UK, Germany, Japan, Australia, UAE, and more.</li>
+            <li><strong>Choose your currency</strong> — The app automatically selects the currency associated with your country, but you can override it anytime. Exchange rates are fetched and cached for offline use.</li>
+            <li><strong>Start exploring</strong> — Once your preferences are set, you're dropped into the Dashboard with all six tabs ready to go.</li>
+        </ol>
+
+        <h3>Overview of the 6 Main Tabs</h3>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tab</th>
+                        <th>Purpose</th>
+                        <th>Shortcut</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>Dashboard</strong></td><td>High-level overview of your research stats, market snapshot, and quick actions</td><td><kbd>1</kbd></td></tr>
+                    <tr><td><strong>Trending Products</strong></td><td>Discover in-demand products with demand scores and competition analysis</td><td><kbd>2</kbd></td></tr>
+                    <tr><td><strong>Search &amp; Compare</strong></td><td>Search any product and compare fees, profit, and margins across platforms</td><td><kbd>3</kbd></td></tr>
+                    <tr><td><strong>Supplier Finder</strong></td><td>Find and evaluate suppliers by type, MOQ, and rating</td><td><kbd>4</kbd></td></tr>
+                    <tr><td><strong>Cost Calculator</strong></td><td>Full cost-to-profit breakdown with taxes, fees, shipping, and more</td><td><kbd>5</kbd></td></tr>
+                    <tr><td><strong>Saved List</strong></td><td>Your bookmarked products, suppliers, and calculations</td><td><kbd>6</kbd></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="tip-box">
+            <div class="tip-label">💡 Tip</div>
+            <p>Press number keys <kbd>1</kbd> through <kbd>6</kbd> on your keyboard to quickly switch between tabs from anywhere in the app.</p>
+        </div>
+    </section>
+
+    <!-- ── 2. Dashboard ───────────────────────────────────── -->
+    <section class="section" id="dashboard">
+        <div class="section-header">
+            <span class="section-num">2</span>
+            <h2>Dashboard</h2>
+        </div>
+
+        <p>The Dashboard is your command center's home screen. It gives you a bird's-eye view of your research activity and quick access to key features.</p>
+
+        <h3>Stat Cards</h3>
+        <p>At the top of the Dashboard, four stat cards display real-time summaries of your activity:</p>
+        <div class="info-card">
+            <h4>📦 Saved Products</h4>
+            <p>The total number of products, suppliers, and calculations you've bookmarked in the Saved List. This updates automatically as you add or remove items.</p>
+        </div>
+        <div class="info-card">
+            <h4>🏭 Suppliers Found</h4>
+            <p>The total number of unique suppliers you've discovered and interacted with across all searches.</p>
+        </div>
+        <div class="info-card">
+            <h4>📊 Avg. Margin</h4>
+            <p>The average profit margin across your saved calculations. A quick health-check on the viability of products you're evaluating.</p>
+        </div>
+        <div class="info-card">
+            <h4>💰 Working Capital</h4>
+            <p>An estimate of the total upfront investment needed for all your saved products, based on MOQ × supplier base price + shipping costs.</p>
+        </div>
+
+        <h3>Market Snapshot Table</h3>
+        <p>The market snapshot shows the top trending products for your selected country at a glance. Each row displays the product name, category, demand score, competition level, and average selling price. Click any product to jump directly to the Search &amp; Compare tab with that product pre-filled.</p>
+
+        <h3>Quick Action Cards</h3>
+        <p>Below the market snapshot, quick action cards let you jump to the most-used workflows:</p>
+        <ul>
+            <li><strong>Find Products</strong> — Opens the Trending Products tab</li>
+            <li><strong>Compare Prices</strong> — Opens the Search &amp; Compare tab</li>
+            <li><strong>Calculate Costs</strong> — Opens the Cost Calculator tab</li>
+            <li><strong>Source Suppliers</strong> — Opens the Supplier Finder tab</li>
+        </ul>
+
+        <h3>AI Market Insight</h3>
+        <p>Click the <strong>"Get AI Insight"</strong> button on the Dashboard to receive an AI-generated summary of the current market landscape for your selected country. The AI analyzes trending categories, demand patterns, and provides actionable recommendations tailored to your market.</p>
+
+        <div class="tip-box">
+            <div class="tip-label">💡 Tip</div>
+            <p>The Dashboard stats update in real-time. Keep it open as a "home base" to track your research progress.</p>
+        </div>
+    </section>
+
+    <!-- ── 3. Trending Products ───────────────────────────── -->
+    <section class="section" id="trending-products">
+        <div class="section-header">
+            <span class="section-num">3</span>
+            <h2>Trending Products</h2>
+        </div>
+
+        <p>The Trending Products tab is your product research engine. It surfaces high-demand products across categories and geographies, helping you spot opportunities before they become saturated.</p>
+
+        <h3>Filtering Products</h3>
+        <p>Use the filter controls at the top to narrow your results:</p>
+        <ul>
+            <li><strong>Country</strong> — Filter by market. Defaults to your selected country, but you can explore other markets too.</li>
+            <li><strong>Category</strong> — Filter by product category (Electronics, Fashion, Home &amp; Kitchen, Beauty, Sports, Toys, etc.).</li>
+            <li><strong>Sort Order</strong> — Sort by demand score (high to low), competition level, or price range.</li>
+        </ul>
+
+        <h3>Understanding Demand Scores</h3>
+        <p>Each product has a <strong>Demand Score</strong> rated from 0 to 100:</p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr><th>Score Range</th><th>Label</th><th>Meaning</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>80–100</strong></td><td>🔥 Very High</td><td>Extremely popular; high search volume and sales velocity</td></tr>
+                    <tr><td><strong>60–79</strong></td><td>📈 High</td><td>Strong demand with room for new sellers</td></tr>
+                    <tr><td><strong>40–59</strong></td><td>📊 Medium</td><td>Moderate demand; evaluate competition carefully</td></tr>
+                    <tr><td><strong>20–39</strong></td><td>📉 Low</td><td>Niche product; may need targeted marketing</td></tr>
+                    <tr><td><strong>0–19</strong></td><td>⬇ Very Low</td><td>Limited demand; high risk for new sellers</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>Understanding Competition Levels</h3>
+        <p>Competition is rated as <strong>Low</strong>, <strong>Medium</strong>, or <strong>High</strong> based on the number of existing sellers, brand dominance, and price pressure in the category. The ideal product has <em>high demand</em> and <em>low competition</em>.</p>
+
+        <h3>Saving Products</h3>
+        <p>Click the <strong>bookmark icon</strong> (🔖) on any product card to save it to your Saved List. You'll see a confirmation toast notification. Saved products can be reviewed, annotated, and exported from the Saved List tab.</p>
+
+        <h3>AI Discover Feature</h3>
+        <p>Click <strong>"AI Discover"</strong> to have the AI suggest untapped product opportunities based on your selected country and filters. The AI looks for gaps in the market — products with rising demand but limited competition.</p>
+
+        <div class="tip-box">
+            <div class="tip-label">💡 Tip</div>
+            <p>Look for products with a demand score above 60 and competition rated "Low" or "Medium" — these are your golden opportunities.</p>
+        </div>
+    </section>
+
+    <!-- ── 4. Search & Compare ────────────────────────────── -->
+    <section class="section" id="search-compare">
+        <div class="section-header">
+            <span class="section-num">4</span>
+            <h2>Search &amp; Compare</h2>
+        </div>
+
+        <p>Search for any product and instantly see a comparison of fees, projected profit, and margins across all major e-commerce platforms in your country.</p>
+
+        <h3>How to Search</h3>
+        <p>Type a product name or keyword into the search bar and press <kbd>Enter</kbd> or click the search button. Results are generated based on your selected country's platform ecosystem. You can also use the global search shortcut <kbd>Ctrl</kbd> + <kbd>K</kbd> from anywhere in the app.</p>
+
+        <h3>Platform Comparison Table</h3>
+        <p>The results table shows a side-by-side comparison across platforms (e.g., Amazon, Flipkart, Meesho, eBay, Walmart, etc. — depending on your country). For each platform, you'll see:</p>
+        <ul>
+            <li><strong>Commission %</strong> — The percentage the platform takes as a referral or commission fee.</li>
+            <li><strong>Fixed Fees</strong> — Any flat-rate fees per order (closing fee, shipping subsidy deduction, etc.).</li>
+            <li><strong>Estimated Profit</strong> — Your projected profit after all platform fees.</li>
+            <li><strong>Profit Margin %</strong> — The net margin as a percentage of your selling price.</li>
+        </ul>
+
+        <h3>Matched Suppliers</h3>
+        <p>Below the comparison table, the app shows <strong>matched suppliers</strong> — vendors that carry the product you searched for (or close alternatives). Each supplier card displays their name, type, location, MOQ, and rating.</p>
+
+        <h3>AI Smart Search</h3>
+        <p>Click <strong>"AI Smart Search"</strong> for an AI-enhanced analysis of the product. The AI provides market insights, pricing strategy recommendations, and highlights the best platform for selling the product based on fee structures and category performance.</p>
+
+        <h3>Saving Search Results</h3>
+        <p>Click <strong>"Save Result"</strong> to bookmark the entire search result — including the comparison data and matched suppliers — to your Saved List for later review.</p>
+
+        <div class="tip-box">
+            <div class="tip-label">💡 Tip</div>
+            <p>Compare margins across 3–4 platforms before choosing where to list. Even a 2–3% difference in commission can significantly impact profitability at scale.</p>
+        </div>
+    </section>
+
+    <!-- ── 5. Supplier Finder ─────────────────────────────── -->
+    <section class="section" id="supplier-finder">
+        <div class="section-header">
+            <span class="section-num">5</span>
+            <h2>Supplier Finder</h2>
+        </div>
+
+        <p>The Supplier Finder helps you discover and evaluate sourcing partners across multiple categories and regions.</p>
+
+        <h3>Searching &amp; Filtering</h3>
+        <p>Enter a product keyword to find relevant suppliers. Use the filter controls to narrow results by:</p>
+        <ul>
+            <li><strong>Supplier Type</strong> — Manufacturer, Wholesaler, Dealer, or Dropshipper</li>
+            <li><strong>Rating</strong> — Minimum star rating (1–5)</li>
+            <li><strong>Location</strong> — Domestic or international suppliers</li>
+        </ul>
+
+        <h3>Understanding Supplier Types</h3>
+        <div class="info-card">
+            <h4>🏭 Manufacturer</h4>
+            <p>Produces goods directly. Usually offers the lowest per-unit cost but requires higher MOQs. Best for established sellers with capital to invest.</p>
+        </div>
+        <div class="info-card">
+            <h4>📦 Wholesaler</h4>
+            <p>Buys in bulk from manufacturers and sells in smaller quantities. Moderate MOQs with reasonable pricing. A good balance for growing sellers.</p>
+        </div>
+        <div class="info-card">
+            <h4>🏪 Dealer / Distributor</h4>
+            <p>Regional or authorized distributors. May offer brand-name products with lower MOQs. Prices are higher per unit but often include support and logistics.</p>
+        </div>
+        <div class="info-card">
+            <h4>🚀 Dropshipper</h4>
+            <p>Ships directly to your customers — no inventory needed. Zero MOQ but lowest margins. Ideal for testing new products with minimal risk.</p>
+        </div>
+
+        <h3>MOQ Explained</h3>
+        <p><strong>Minimum Order Quantity (MOQ)</strong> is the smallest number of units a supplier will sell per order. Lower MOQs mean less upfront capital but may result in higher per-unit costs. Always factor MOQ into your working capital calculations using the Cost Calculator.</p>
+
+        <h3>Rating System</h3>
+        <p>Suppliers are rated on a 1–5 star scale based on reliability, response time, product quality, and consistency. Ratings above 4.0 are considered excellent. Sort by rating to find the most trusted suppliers first.</p>
+
+        <h3>AI Suggest Suppliers</h3>
+        <p>Click <strong>"AI Suggest"</strong> to let the AI recommend the best suppliers for your product based on your budget, target margin, and country. The AI considers factors like supplier reliability, MOQ, pricing, and logistics feasibility.</p>
+
+        <div class="tip-box">
+            <div class="tip-label">💡 Tip</div>
+            <p>Always contact 2–3 suppliers before committing. Compare MOQs, sample availability, and shipping terms to find the best fit for your business model.</p>
+        </div>
+    </section>
+
+    <!-- ── 6. Cost Calculator ─────────────────────────────── -->
+    <section class="section" id="cost-calculator">
+        <div class="section-header">
+            <span class="section-num">6</span>
+            <h2>Cost Calculator</h2>
+        </div>
+
+        <p>The Cost Calculator is the most detailed tool in the Command Center. It calculates exact profit, margin, break-even, and working capital requirements for any product — accounting for every cost from sourcing to delivery.</p>
+
+        <h3>Input Fields Walkthrough</h3>
+        <ol class="steps">
+            <li>
+                <strong>Supplier Base Price</strong> — The per-unit cost from your supplier, in your selected currency. This is the foundation of your entire calculation.
+            </li>
+            <li>
+                <strong>Minimum Order Quantity (MOQ)</strong> — How many units you'll order from the supplier. This affects your total investment and working capital calculation.
+            </li>
+            <li>
+                <strong>Inward Shipping</strong> — The cost to get inventory from the supplier to your location (or warehouse), expressed per unit. Include freight, customs, and handling charges.
+            </li>
+            <li>
+                <strong>GST / VAT / Tax Rate (%)</strong> — The applicable tax rate on the product in your country. The calculator uses this to compute tax payable and input tax credit.
+            </li>
+            <li>
+                <strong>Input Tax Credit (ITC)</strong> — Toggle this on if you can claim tax credits on your purchases (common for GST-registered businesses in India). When enabled, the tax paid on supplier purchases is offset against tax collected on sales.
+            </li>
+            <li>
+                <strong>Platform Selection</strong> — Choose the e-commerce platform you plan to sell on. The calculator automatically applies the correct commission rates, closing fees, and shipping subsidies for that platform.
+            </li>
+            <li>
+                <strong>Selling Price</strong> — Your target selling price per unit (including tax). Experiment with different prices to find the sweet spot between competitiveness and profitability.
+            </li>
+            <li>
+                <strong>Packaging Cost</strong> — Per-unit cost for packaging materials (boxes, poly bags, bubble wrap, labels, etc.).
+            </li>
+            <li>
+                <strong>Return Rate (%)</strong> — The estimated percentage of orders that will be returned. Industry averages range from 2–5% for most categories, but fashion can be 15–20%.
+            </li>
+            <li>
+                <strong>Advertising / Marketing</strong> — Per-unit allocation for paid ads (PPC, sponsored listings, social media ads). Even a small ad budget can dramatically impact margins.
+            </li>
+            <li>
+                <strong>Miscellaneous Costs</strong> — Any other per-unit costs not covered above (photography, warehousing, software subscriptions, etc.).
+            </li>
+        </ol>
+
+        <h3>Reading the Results</h3>
+        <p>After entering all fields, the calculator instantly computes:</p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr><th>Metric</th><th>What It Means</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>Net Profit per Unit</strong></td><td>Your actual take-home profit after every cost and fee is deducted</td></tr>
+                    <tr><td><strong>Profit Margin %</strong></td><td>Net profit as a percentage of selling price — aim for 15–30% minimum</td></tr>
+                    <tr><td><strong>Break-Even Units</strong></td><td>The number of units you need to sell to recover your initial investment</td></tr>
+                    <tr><td><strong>Working Capital</strong></td><td>Total upfront investment needed: (Base Price + Inward Shipping) × MOQ + initial costs</td></tr>
+                    <tr><td><strong>ROI %</strong></td><td>Return on investment — how much profit per rupee/dollar invested</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>Cost Breakdown</h3>
+        <p>The visual cost breakdown chart shows exactly where your selling price goes — supplier cost, platform fees, taxes, packaging, shipping, ads, and profit. This helps you identify the biggest cost drivers and optimize them.</p>
+
+        <h3>AI Optimize Feature</h3>
+        <p>Click <strong>"AI Optimize"</strong> to receive AI-powered suggestions for improving your margins. The AI may suggest alternative pricing strategies, packaging optimizations, or platform switches to increase profitability.</p>
+
+        <h3>Saving Calculator Results</h3>
+        <p>Click <strong>"Save Calculation"</strong> to bookmark the current result. Saved calculations retain all inputs and outputs, so you can revisit and compare different product scenarios from the Saved List tab.</p>
+
+        <div class="warning-box">
+            <div class="tip-label">⚠️ Important</div>
+            <p>The calculator provides estimates based on standard platform fee structures. Actual fees may vary based on your seller plan, category-specific rates, and promotional offers. Always verify with the platform's official fee calculator before finalizing.</p>
+        </div>
+    </section>
+
+    <!-- ── 7. Saved List ──────────────────────────────────── -->
+    <section class="section" id="saved-list">
+        <div class="section-header">
+            <span class="section-num">7</span>
+            <h2>Saved List</h2>
+        </div>
+
+        <p>The Saved List is your personal research vault. Everything you bookmark — products, suppliers, search comparisons, and cost calculations — lives here for easy reference.</p>
+
+        <h3>Managing Saved Items</h3>
+        <p>Each saved item shows a summary card with the key details. Items are categorized by type (Product, Supplier, Comparison, Calculation) and sorted by the date saved, with the most recent items first.</p>
+
+        <h3>Adding &amp; Editing Notes</h3>
+        <p>Click the <strong>pencil icon</strong> (✏️) on any saved item to add or edit a personal note. Notes are great for recording your analysis, next steps, or reasons why you saved the item.</p>
+
+        <h3>Deleting Items</h3>
+        <p>Click the <strong>trash icon</strong> (🗑️) to remove an item from your saved list. You'll see a confirmation prompt before deletion to prevent accidental removals.</p>
+
+        <h3>CSV Export</h3>
+        <p>Click <strong>"Export CSV"</strong> to download your entire saved list as a CSV file. The export includes all item details, your notes, and timestamps — perfect for analysis in spreadsheet software like Excel or Google Sheets.</p>
+
+        <h3>Bulk Actions</h3>
+        <p>Use the checkboxes to select multiple items, then use the bulk action toolbar to:</p>
+        <ul>
+            <li><strong>Delete Selected</strong> — Remove multiple items at once</li>
+            <li><strong>Export Selected</strong> — Export only the checked items to CSV</li>
+        </ul>
+
+        <div class="tip-box">
+            <div class="tip-label">💡 Tip</div>
+            <p>Use notes to tag items with labels like "HIGH PRIORITY" or "FOLLOW UP" so you can quickly scan your saved list for actionable items.</p>
+        </div>
+    </section>
+
+    <!-- ── 8. Country & Currency ──────────────────────────── -->
+    <section class="section" id="country-currency">
+        <div class="section-header">
+            <span class="section-num">8</span>
+            <h2>Country &amp; Currency</h2>
+        </div>
+
+        <p>The Command Center supports multiple countries and currencies, letting you research products and costs in any market.</p>
+
+        <h3>Global Country Selector</h3>
+        <p>The country selector in the top header is global — changing it updates the entire app. Trending products will show data for the new country, platform fees adjust to local marketplaces, and supplier search prioritizes relevant regions.</p>
+
+        <h3>Currency Conversion</h3>
+        <p>All prices, costs, and calculations throughout the app are displayed in your selected currency. The app uses live exchange rates fetched from a public API, so figures are always up-to-date.</p>
+
+        <h3>Independent Currency Selection</h3>
+        <p>You can set the currency independently of the country. For example, you could research products in India but display all prices in USD for easier comparison. Use the currency dropdown in the header next to the country selector.</p>
+
+        <h3>Exchange Rate Caching &amp; Updates</h3>
+        <p>Exchange rates are cached locally for offline use. Rates are refreshed automatically when the app detects an internet connection. The cache duration is typically 24 hours to balance freshness with API rate limits.</p>
+
+        <div class="tip-box">
+            <div class="tip-label">💡 Tip</div>
+            <p>When comparing products across countries, keep the currency consistent (e.g., always use USD) so you can make accurate cross-border comparisons.</p>
+        </div>
+    </section>
+
+    <!-- ── 9. AI Features ─────────────────────────────────── -->
+    <section class="section" id="ai-features">
+        <div class="section-header">
+            <span class="section-num">9</span>
+            <h2>AI Features</h2>
+        </div>
+
+        <p>The Command Center integrates AI capabilities powered by <strong>NVIDIA's z-ai/glm-5.2 model</strong> to provide intelligent insights, recommendations, and analysis across every tab.</p>
+
+        <h3>AI Feature Overview</h3>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr><th>Feature</th><th>Tab</th><th>What It Does</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>AI Market Insight</strong></td><td>Dashboard</td><td>Generates a high-level market analysis for your selected country</td></tr>
+                    <tr><td><strong>AI Discover</strong></td><td>Trending Products</td><td>Suggests untapped product opportunities with low competition</td></tr>
+                    <tr><td><strong>AI Smart Search</strong></td><td>Search &amp; Compare</td><td>Enhanced product analysis with pricing strategy recommendations</td></tr>
+                    <tr><td><strong>AI Suggest</strong></td><td>Supplier Finder</td><td>Recommends optimal suppliers based on your criteria</td></tr>
+                    <tr><td><strong>AI Optimize</strong></td><td>Cost Calculator</td><td>Suggests ways to improve margins and reduce costs</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>Usage Tips for Better Results</h3>
+        <ul>
+            <li><strong>Be specific</strong> — The more specific your search queries and inputs, the more relevant the AI's recommendations will be.</li>
+            <li><strong>Fill in all fields</strong> — AI features work best when they have complete context. Fill in cost calculator fields before asking the AI to optimize.</li>
+            <li><strong>Try different markets</strong> — Switch countries and run the AI again to get market-specific insights for cross-border opportunities.</li>
+            <li><strong>Use as a starting point</strong> — AI suggestions are generated estimates. Always validate with your own research and real supplier conversations.</li>
+        </ul>
+
+        <h3>Understanding AI Limitations</h3>
+        <div class="warning-box">
+            <div class="tip-label">⚠️ Important</div>
+            <p>AI-generated insights are <strong>estimates and suggestions, not guarantees</strong>. The AI model provides directional guidance based on patterns and general market knowledge. Actual market conditions, supplier pricing, and platform fees may differ. Always verify critical business decisions with primary data sources.</p>
+        </div>
+
+        <p>Additional limitations to be aware of:</p>
+        <ul>
+            <li>AI responses require an active internet connection</li>
+            <li>Response times vary (typically 3–10 seconds depending on complexity)</li>
+            <li>The AI may occasionally produce outdated pricing or fee information</li>
+            <li>Rate limits may apply during peak usage — wait a moment and try again</li>
+        </ul>
+    </section>
+
+    <!-- ── 10. Keyboard Shortcuts ─────────────────────────── -->
+    <section class="section" id="keyboard-shortcuts">
+        <div class="section-header">
+            <span class="section-num">10</span>
+            <h2>Keyboard Shortcuts</h2>
+        </div>
+
+        <p>Power users can navigate the app faster with these keyboard shortcuts:</p>
+
+        <h3>Tab Navigation</h3>
+        <div class="shortcut-grid">
+            <div class="shortcut-item">
+                <span class="shortcut-label">Dashboard</span>
+                <kbd>1</kbd>
+            </div>
+            <div class="shortcut-item">
+                <span class="shortcut-label">Trending Products</span>
+                <kbd>2</kbd>
+            </div>
+            <div class="shortcut-item">
+                <span class="shortcut-label">Search &amp; Compare</span>
+                <kbd>3</kbd>
+            </div>
+            <div class="shortcut-item">
+                <span class="shortcut-label">Supplier Finder</span>
+                <kbd>4</kbd>
+            </div>
+            <div class="shortcut-item">
+                <span class="shortcut-label">Cost Calculator</span>
+                <kbd>5</kbd>
+            </div>
+            <div class="shortcut-item">
+                <span class="shortcut-label">Saved List</span>
+                <kbd>6</kbd>
+            </div>
+        </div>
+
+        <h3>Global Shortcuts</h3>
+        <div class="shortcut-grid">
+            <div class="shortcut-item">
+                <span class="shortcut-label">Quick Search</span>
+                <kbd>Ctrl</kbd> + <kbd>K</kbd>
+            </div>
+            <div class="shortcut-item">
+                <span class="shortcut-label">Save Current Item</span>
+                <kbd>Ctrl</kbd> + <kbd>S</kbd>
+            </div>
+            <div class="shortcut-item">
+                <span class="shortcut-label">Close Modal / Dialog</span>
+                <kbd>Esc</kbd>
+            </div>
+        </div>
+
+        <div class="tip-box">
+            <div class="tip-label">💡 Tip</div>
+            <p>Keyboard shortcuts are disabled when a text input field is focused, so you can type freely without accidentally switching tabs.</p>
+        </div>
+    </section>
+
+    <!-- ── 11. FAQ & Troubleshooting ──────────────────────── -->
+    <section class="section" id="faq">
+        <div class="section-header">
+            <span class="section-num">11</span>
+            <h2>FAQ &amp; Troubleshooting</h2>
+        </div>
+
+        <p>Common questions and solutions for issues you might encounter.</p>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggleFaq(this)">
+                Where is my data stored?
+                <svg class="faq-chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div class="faq-answer">
+                <div class="faq-answer-inner">
+                    All your data — saved products, suppliers, calculations, notes, and preferences — is stored <strong>locally in your browser</strong> using IndexedDB and LocalStorage. Nothing is sent to any external server (except AI queries, which require an internet connection). Your data stays private on your device.
+                </div>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggleFaq(this)">
+                How do I reset all my data?
+                <svg class="faq-chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div class="faq-answer">
+                <div class="faq-answer-inner">
+                    To reset all data, open your browser's Developer Tools (<kbd>F12</kbd>), go to the <strong>Application</strong> tab, and clear both <strong>LocalStorage</strong> and <strong>IndexedDB</strong> entries for the page. Alternatively, clear the site data from your browser's settings. This action is irreversible — consider exporting your saved list to CSV first.
+                </div>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggleFaq(this)">
+                Currency rates aren't updating
+                <svg class="faq-chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div class="faq-answer">
+                <div class="faq-answer-inner">
+                    The app caches exchange rates for offline use. If rates seem stale, check your internet connection — the app will automatically fetch fresh rates when connectivity is restored. Cached rates are typically refreshed every 24 hours. If the issue persists, clear the site's LocalStorage and reload the page.
+                </div>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggleFaq(this)">
+                AI features aren't responding
+                <svg class="faq-chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div class="faq-answer">
+                <div class="faq-answer-inner">
+                    AI features require an active internet connection. If the AI isn't responding, check the following:
+                    <ul style="margin-top:8px;">
+                        <li><strong>Internet connection</strong> — Ensure you're online.</li>
+                        <li><strong>CORS issues</strong> — If running from a local file (<code>file://</code>), some browsers block API requests. Try serving the file via a local HTTP server (e.g., <code>npx serve</code> or Python's <code>http.server</code>).</li>
+                        <li><strong>Rate limits</strong> — The NVIDIA API has usage limits. If you've made many requests in a short time, wait a few minutes and try again.</li>
+                        <li><strong>API key</strong> — Ensure the API key embedded in the app is valid and hasn't been revoked.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggleFaq(this)">
+                Which browsers are supported?
+                <svg class="faq-chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div class="faq-answer">
+                <div class="faq-answer-inner">
+                    The app is optimized for modern Chromium-based browsers:
+                    <ul style="margin-top:8px;">
+                        <li><strong>Google Chrome</strong> (recommended) — Best performance and full feature support</li>
+                        <li><strong>Microsoft Edge</strong> — Fully supported</li>
+                        <li><strong>Mozilla Firefox</strong> — Fully supported</li>
+                        <li><strong>Safari</strong> — Mostly supported; some minor CSS differences may occur</li>
+                        <li><strong>Internet Explorer</strong> — Not supported</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggleFaq(this)">
+                Can I use the app on mobile?
+                <svg class="faq-chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div class="faq-answer">
+                <div class="faq-answer-inner">
+                    Yes! The app is fully responsive and works on mobile browsers. On smaller screens, the tab navigation switches to a scrollable horizontal layout, and some tables become horizontally scrollable. For the best experience, we recommend a tablet or desktop for detailed cost calculations.
+                </div>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggleFaq(this)">
+                Is my data synced across devices?
+                <svg class="faq-chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div class="faq-answer">
+                <div class="faq-answer-inner">
+                    No, data is stored locally in your browser and is not synced across devices or browsers. To transfer your research, use the CSV export feature on one device and import/reference it on another. Future versions may include cloud sync capabilities.
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══ Footer ═══════════════════════════════════════════ -->
+    <footer class="manual-footer">
+        <p>Solo E-Commerce Command Center v2 — User Manual</p>
+        <p style="margin-top:6px;"><a href="index.html">← Return to App</a></p>
+    </footer>
+
+</main>
+
+<!-- ═══ JavaScript ════════════════════════════════════════════ -->
+<script>
+    // ── Sidebar Toggle (Mobile) ─────────────────────────────
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('open');
+    }
+
+    // ── FAQ Accordion ───────────────────────────────────────
+    function toggleFaq(btn) {
+        const item = btn.closest('.faq-item');
+        const wasOpen = item.classList.contains('open');
+        // Close all FAQs
+        document.querySelectorAll('.faq-item.open').forEach(i => i.classList.remove('open'));
+        // Toggle clicked (if it was closed)
+        if (!wasOpen) item.classList.add('open');
+    }
+
+    // ── Scroll Progress Bar ─────────────────────────────────
+    const progressBar = document.getElementById('progressBar');
+    window.addEventListener('scroll', () => {
+        const scrollTop = window.scrollY;
+        const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+        progressBar.style.width = progress + '%';
+    });
+
+    // ── Active TOC Highlighting ─────────────────────────────
+    const sections = document.querySelectorAll('.section[id]');
+    const tocLinks = document.querySelectorAll('.toc-item a');
+
+    const observerOptions = {
+        root: null,
+        rootMargin: '-80px 0px -60% 0px',
+        threshold: 0
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const id = entry.target.getAttribute('id');
+                tocLinks.forEach(link => {
+                    link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+                });
+            }
+        });
+    }, observerOptions);
+
+    sections.forEach(section => observer.observe(section));
+
+    // ── Close sidebar on link click (mobile) ────────────────
+    tocLinks.forEach(link => {
+        link.addEventListener('click', () => {
+            if (window.innerWidth < 769) {
+                document.getElementById('sidebar').classList.remove('open');
+                document.getElementById('sidebarOverlay').classList.remove('open');
+            }
+        });
+    });
+</script>
+
+</body>
+</html>

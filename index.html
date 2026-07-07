@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Solo E-Commerce Command Center — AI-powered product research, price comparison, supplier finder, and profitability calculator for 20+ countries worldwide.">
+  <title>Solo E-Commerce Command Center — Global Edition</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1a1a1a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ECO Command">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+</head>
+<body>
+<div id="app-root">
+
+  <!-- ═══ Header Bar ═══ -->
+  <header class="header-bar">
+    <div class="header-left">
+      <div class="app-logo">⚡</div>
+      <div>
+        <div class="app-title">E-Commerce Command Center</div>
+        <div class="app-subtitle">Global Edition</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="connection-badge" id="connection-status" title="Checking...">⏳ Checking</span>
+      <select class="global-select" id="global-country" title="Select country"></select>
+      <select class="global-select" id="global-currency" title="Display currency"></select>
+      <button class="header-btn" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme">☀️</button>
+      <button class="header-btn" onclick="openSettings()" title="Settings">⚙️</button>
+      <a href="manual.html" class="header-btn" title="Help" style="text-decoration:none;">📖</a>
+    </div>
+  </header>
+
+  <!-- ═══ Navigation ═══ -->
+  <nav class="nav-bar" id="nav-bar">
+    <button class="nav-btn active" data-page="dashboard">📊 Dashboard</button>
+    <button class="nav-btn" data-page="trending">🔥 Trending</button>
+    <button class="nav-btn" data-page="search">🔍 Search & Compare</button>
+    <button class="nav-btn" data-page="suppliers">🏭 Suppliers</button>
+    <button class="nav-btn" data-page="calculator">🧮 Calculator</button>
+    <button class="nav-btn" data-page="saved">💾 Saved List</button>
+    <button class="nav-btn" data-page="agent" style="background:linear-gradient(135deg,rgba(99,102,241,0.2),rgba(139,92,246,0.2));border-color:rgba(99,102,241,0.3);">🤖 AI Agent</button>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- PAGE: Dashboard                                        -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <section class="page active" id="page-dashboard">
+    <div class="grid-4" style="margin-bottom:20px;">
+      <div class="stat-box">
+        <div class="stat-icon" style="background:var(--accent-soft);color:var(--accent);">📦</div>
+        <div class="stat-value" id="dash-saved">0</div>
+        <div class="stat-label">Saved Products</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-icon" style="background:var(--positive-soft);color:var(--positive);">🏭</div>
+        <div class="stat-value" id="dash-suppliers">0</div>
+        <div class="stat-label">Suppliers</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-icon" style="background:var(--warning-soft);color:var(--warning);">📈</div>
+        <div class="stat-value" id="dash-avg-margin">0%</div>
+        <div class="stat-label">Avg Margin</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-icon" style="background:rgba(139,92,246,0.12);color:#a78bfa;">💰</div>
+        <div class="stat-value" id="dash-capital">$0</div>
+        <div class="stat-label">Est. Working Capital</div>
+      </div>
+    </div>
+
+    <!-- PWA INSTALL BUTTON -->
+    <div id="install-pwa-section" style="margin-bottom:16px;display:none;">
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;padding:16px;">
+        <div>
+          <h3 style="margin:0;">📱 Install as App</h3>
+          <p class="muted" style="margin:4px 0 0;">Add to your home screen for quick access. Works offline!</p>
+        </div>
+        <button class="btn btn-primary" id="install-pwa-btn">Install App</button>
+      </div>
+    </div>
+
+    <div class="section-header">
+      <h2>Quick Actions</h2>
+    </div>
+    <div class="grid-3" style="margin-bottom:24px;">
+      <div class="card card-clickable card-glow" role="button" tabindex="0" onclick="goTo('search')" onkeydown="if(event.key==='Enter')goTo('search')">
+        <h3>🔍 Search Products</h3>
+        <p class="muted">Compare prices across platforms worldwide. Find the cheapest source instantly.</p>
+      </div>
+      <div class="card card-clickable card-glow" role="button" tabindex="0" onclick="goTo('suppliers')" onkeydown="if(event.key==='Enter')goTo('suppliers')">
+        <h3>🏭 Find Suppliers</h3>
+        <p class="muted">Filter manufacturers, wholesalers, and dropshippers by MOQ, location, and category.</p>
+      </div>
+      <div class="card card-clickable card-glow" role="button" tabindex="0" onclick="goTo('calculator')" onkeydown="if(event.key==='Enter')goTo('calculator')">
+        <h3>🧮 Run Cost Math</h3>
+        <p class="muted">See exact profit per unit, break-even units, and working capital needed.</p>
+      </div>
+    </div>
+
+    <div class="section-header">
+      <h2>Market Snapshot</h2>
+      <button class="btn btn-ai" onclick="aiMarketInsight()">AI Market Insight</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Category</th><th>Products</th><th>Avg Margin</th><th>Demand</th><th>Competition</th></tr></thead>
+        <tbody id="market-snapshot-body"></tbody>
+      </table>
+    </div>
+    <div id="ai-insight-container"></div>
+
+    <!-- INVENTORY FORECAST -->
+    <div style="margin-top:24px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h2 style="margin:0;">📦 Inventory Forecast</h2>
+        <button class="btn btn-sm" id="refresh-forecast" onclick="renderInventoryForecast()">🔄 Refresh</button>
+      </div>
+      <div id="inventory-forecast"></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- PAGE: Trending                                         -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <section class="page" id="page-trending">
+    <div class="section-header">
+      <h2>🔥 Trending & Top Selling Products</h2>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ai" onclick="aiDiscoverTrending()">AI Discover</button>
+        <button class="btn btn-primary" id="btn-deep-research" onclick="deepResearchTrending()">🔬 Deep Research</button>
+      </div>
+    </div>
+    <div class="filter-row">
+      <select class="select" id="trend-category" onchange="resetAndRenderTrending()"><option value="all">All categories</option></select>
+      <select class="select" id="trend-sort" onchange="resetAndRenderTrending()">
+        <option value="score">Sort by Winner Score</option>
+        <option value="demand">Sort by demand</option>
+        <option value="margin">Sort by margin</option>
+        <option value="competition">Sort by competition (low first)</option>
+      </select>
+      <select class="select" id="trend-score-filter" onchange="resetAndRenderTrending()">
+        <option value="all">All scores</option>
+        <option value="75">🔥 75+ Hot Picks only</option>
+        <option value="50">50+ Viable products</option>
+      </select>
+      <select class="select" id="trend-limit" onchange="resetAndRenderTrending()">
+        <option value="10">10 items</option>
+        <option value="20" selected>20 items</option>
+        <option value="50">50 items</option>
+        <option value="80">80 items</option>
+        <option value="100">100 items</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Product</th><th style="cursor:pointer;" onclick="document.getElementById('trend-sort').value='score';resetAndRenderTrending();">Winner Score ▼</th><th>Country</th><th>Category</th><th>Demand</th><th>Margin</th><th>Competition</th><th>Platforms</th><th>Base Cost</th><th>Action</th></tr></thead>
+        <tbody id="trend-body"></tbody>
+      </table>
+    </div>
+    <div id="trend-loading-trigger" style="text-align:center;padding:16px;color:var(--text-secondary);font-size:13px;display:none;">
+      <div class="spinner" style="margin:0 auto 8px;"></div>
+      Loading more trending products...
+    </div>
+    <div id="ai-trending-container"></div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- PAGE: Search & Compare                                 -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <section class="page" id="page-search">
+    <h2>🔍 Product Search & Price Comparison</h2>
+    <div class="search-box">
+      <div style="position:relative;flex:1;display:flex;align-items:center;">
+        <input class="input" id="search-input" placeholder="Search product name or paste e-commerce URL..." onkeydown="if(event.key==='Enter')doSearch()" style="padding-right:40px;">
+        <button id="search-image-btn" style="position:absolute;right:8px;background:none;border:none;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);padding:4px;transition:color 0.2s;" title="Search by image (YOLOv8)" onclick="document.getElementById('search-image-file').click()">📷</button>
+      </div>
+      <input type="file" id="search-image-file" accept="image/*" style="display:none;" onchange="handleImageSearchFile(this)">
+      <select class="select" id="search-limit" style="width:120px;" onchange="doSearch()">
+        <option value="10">10 items</option>
+        <option value="20" selected>20 items</option>
+        <option value="50">50 items</option>
+        <option value="80">80 items</option>
+        <option value="100">100 items</option>
+      </select>
+      <button class="btn btn-primary" onclick="doSearch()">Search</button>
+      <button class="btn btn-ai" onclick="aiSmartSearch()">AI Search</button>
+    </div>
+    <div id="search-image-preview-container" style="display:none;align-items:center;gap:12px;margin:8px 0;padding:8px 12px;background:var(--bg-elevated);border-radius:8px;border:1px solid var(--border);">
+      <img id="search-image-preview" style="width:40px;height:40px;object-fit:cover;border-radius:4px;border:1px solid var(--border);">
+      <div style="flex:1;">
+        <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;">Image Analysis Result:</div>
+        <div id="search-image-tags" style="font-size:13px;font-weight:700;color:var(--accent);">Detecting object details...</div>
+      </div>
+      <button class="btn btn-sm" onclick="clearImageSearch()" style="padding:2px 8px;font-size:11px;">✕ Clear</button>
+    </div>
+    <div id="search-results">
+      <div class="empty-state">
+        <div class="empty-state-icon">🔍</div>
+        <div class="empty-state-text">Type a product name and hit Search to compare across platforms</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- PAGE: Supplier Finder                                  -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <section class="page" id="page-suppliers">
+    <div class="section-header">
+      <h2>🏭 Supplier Finder</h2>
+      <button class="btn btn-ai" onclick="aiSuggestSuppliers()">AI Suggest</button>
+    </div>
+    <div class="search-box">
+      <input class="input" id="supplier-input" placeholder="Search by product, city, or supplier name..." onkeydown="if(event.key==='Enter')doSupplierSearch()">
+      <select class="select" id="supplier-type" style="width:160px;">
+        <option value="all">All types</option>
+        <option value="Manufacturer">Manufacturer</option>
+        <option value="Wholesaler">Wholesaler</option>
+        <option value="Dealer">Dealer</option>
+        <option value="Dropshipper">Dropshipper</option>
+      </select>
+      <select class="select" id="supplier-country" style="width:160px;">
+        <option value="all">All countries</option>
+      </select>
+      <button class="btn btn-primary" onclick="doSupplierSearch()">Find</button>
+    </div>
+    <div id="supplier-results"></div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- PAGE: Cost Calculator                                  -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <section class="page" id="page-calculator">
+    <div class="section-header">
+      <h2>🧮 Cost Calculator — Per Unit & Break-Even</h2>
+      <button class="btn btn-ai" onclick="aiOptimizePrice()">AI Optimize</button>
+    </div>
+    <div class="calc-grid">
+      <div>
+        <div class="card" style="margin-bottom:12px;">
+          <h3>Product & Sourcing</h3>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <div class="input-group">
+              <label class="input-label">Product name</label>
+              <input class="input" id="calc-product-name" type="text" value="" placeholder="Enter product name">
+            </div>
+            <div class="input-group">
+              <label class="input-label">Supplier base price</label>
+              <input class="input" id="calc-base" type="number" value="55" oninput="runCalc()">
+            </div>
+            <div class="input-group">
+              <label class="input-label">MOQ (units you will buy)</label>
+              <input class="input" id="calc-moq" type="number" value="30" oninput="runCalc()">
+            </div>
+            <div class="input-group">
+              <label class="input-label">Inward shipping per unit</label>
+              <input class="input" id="calc-inward" type="number" value="8" oninput="runCalc()">
+            </div>
+            <div class="input-group">
+              <label class="input-label" id="calc-tax-label">GST paid to supplier (%)</label>
+              <input class="input" id="calc-gst" type="number" value="18" oninput="runCalc()">
+            </div>
+            <div class="input-group">
+              <label class="input-label">Can you claim tax input credit?</label>
+              <select class="select" id="calc-itc" onchange="runCalc()">
+                <option value="no">No (unregistered/cash supplier)</option>
+                <option value="yes">Yes (registered supplier with invoice)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Platform & Selling</h3>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <div class="input-group">
+              <label class="input-label">Platform</label>
+              <select class="select" id="calc-platform" onchange="runCalc()">
+                <option value="own">Own website (2% gateway)</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label class="input-label">Selling price</label>
+              <input class="input" id="calc-sp" type="number" value="349" oninput="runCalc()">
+            </div>
+            <div class="input-group">
+              <label class="input-label">Packaging per unit</label>
+              <input class="input" id="calc-pack" type="number" value="12" oninput="runCalc()">
+            </div>
+            <div class="input-group">
+              <label class="input-label">Return rate (%)</label>
+              <input class="input" id="calc-return" type="number" value="10" oninput="runCalc()">
+            </div>
+            <div class="input-group">
+              <label class="input-label">Ad spend per unit</label>
+              <input class="input" id="calc-ad" type="number" value="0" oninput="runCalc()">
+            </div>
+            <div class="input-group">
+              <label class="input-label">Misc per unit (labels, tape, etc.)</label>
+              <input class="input" id="calc-misc" type="number" value="4" oninput="runCalc()">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="calc-result" style="margin-bottom:12px;">
+          <div class="value" id="res-profit">$0</div>
+          <div class="label">Net Profit Per Unit</div>
+          <div class="progress-bar" style="margin-top:8px;"><div class="progress-fill" id="bar-profit" style="width:0%"></div></div>
+        </div>
+        <div class="calc-result" style="margin-bottom:12px;">
+          <div class="value" id="res-margin">0%</div>
+          <div class="label">Net Margin</div>
+        </div>
+        <div class="calc-result" style="margin-bottom:12px;">
+          <div class="value" id="res-cost">$0</div>
+          <div class="label">Total Cost Per Unit</div>
+        </div>
+        <div class="calc-result" style="margin-bottom:12px;">
+          <div class="value" id="res-capital">$0</div>
+          <div class="label">Working Capital Needed</div>
+        </div>
+        <div class="calc-result" style="margin-bottom:12px;">
+          <div class="value" id="res-breakeven">0</div>
+          <div class="label">Break-Even Units</div>
+        </div>
+        <div class="calc-result" style="margin-bottom:12px;">
+          <div class="value" id="res-weeks">0</div>
+          <div class="label">Weeks to Break-Even (5 units/day)</div>
+        </div>
+        <div class="card" style="margin-top:12px;">
+          <h3>Cost Breakdown</h3>
+          <div id="calc-breakdown" style="font-size:13px;line-height:1.8;color:var(--text-secondary);"></div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-top:12px;" onclick="saveCalcProduct()">💾 Save This Product</button>
+        <div id="ai-calc-container" style="margin-top:12px;"></div>
+
+        <!-- WHAT-IF SIMULATOR -->
+        <div class="card" style="margin-top:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h3 style="margin:0;">🔮 What-If Simulator</h3>
+            <button class="btn btn-sm" id="sim-best-price">🔍 Find Best Price</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              <div class="input-group">
+                <label class="input-label">Selling price modifier: <span id="sim-price-val" style="font-size:11px;padding:2px 8px;border-radius:4px;background:var(--accent-soft);color:var(--accent);">100%</span></label>
+                <input type="range" id="sim-price" min="70" max="130" value="100" style="width:100%;margin-top:6px;accent-color:var(--accent);">
+              </div>
+              <div class="input-group">
+                <label class="input-label">Return rate: <span id="sim-ret-val" style="font-size:11px;padding:2px 8px;border-radius:4px;background:var(--accent-soft);color:var(--accent);">10%</span></label>
+                <input type="range" id="sim-ret" min="0" max="30" value="10" style="width:100%;margin-top:6px;accent-color:var(--accent);">
+              </div>
+              <div class="input-group">
+                <label class="input-label">Daily sales: <span id="sim-daily-val" style="font-size:11px;padding:2px 8px;border-radius:4px;background:var(--accent-soft);color:var(--accent);">5</span></label>
+                <input type="range" id="sim-daily" min="1" max="50" value="5" style="width:100%;margin-top:6px;accent-color:var(--accent);">
+              </div>
+              <div class="input-group">
+                <label class="input-label">Ad spend / unit: <span id="sim-ad-val" style="font-size:11px;padding:2px 8px;border-radius:4px;background:var(--accent-soft);color:var(--accent);">—</span></label>
+                <input type="range" id="sim-ad" min="0" max="100" value="0" style="width:100%;margin-top:6px;accent-color:var(--accent);">
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div class="calc-result">
+                <div class="value good" id="sim-profit">—</div>
+                <div class="label">Monthly Profit</div>
+              </div>
+              <div class="calc-result">
+                <div class="value good" id="sim-annual">—</div>
+                <div class="label">Annual Profit</div>
+              </div>
+              <div style="font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1px;margin-top:4px;">12-Week Trajectory</div>
+              <div id="sim-chart" style="display:flex;align-items:flex-end;gap:3px;height:80px;background:var(--bg-elevated);border-radius:8px;padding:8px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- PAGE: Saved List                                       -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <section class="page" id="page-saved">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+      <h2 style="margin:0;">💾 My Saved Products</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input type="file" id="import-file" accept=".csv" style="display:none;">
+        <button class="btn btn-sm" id="import-btn" onclick="document.getElementById('import-file').click()">📥 Import CSV</button>
+        <button class="btn btn-sm" id="export-full-btn" onclick="exportFullCSV()">📤 Export Full</button>
+        <button class="btn btn-sm" style="color:var(--danger);" id="clear-all-btn" onclick="clearAllSavedItems()">🗑 Clear All</button>
+      </div>
+    </div>
+    <div id="saved-list"></div>
+  </section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- PAGE: AI Agent Chatbot                                -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="page" id="page-agent">
+  <div class="page-header">
+    <div>
+      <h2 class="page-title" style="background:linear-gradient(135deg,#6366f1,#8b5cf6,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">🤖 AI Research Agent</h2>
+      <p class="page-subtitle">Real-time scraping from Amazon, Flipkart, IndiaMART, Alibaba &amp; more — with self-correcting intelligence</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <div class="agent-status-pills">
+        <span class="agent-pill">🕷️ Scrapling</span>
+        <span class="agent-pill">🕸️ Scrapy</span>
+        <span class="agent-pill">🛡️ Self-Correcting</span>
+        <span class="agent-pill">📊 DB-Aware</span>
+      </div>
+      <button class="btn btn-sm" id="chat-clear-btn" style="opacity:0.7;">🗑 Clear</button>
+    </div>
+  </div>
+
+  <div class="agent-layout">
+    <!-- ── Chat Panel ── -->
+    <div class="agent-chat-panel">
+      <div id="chat-messages" class="chat-messages"></div>
+
+      <div class="chat-input-row">
+        <div class="chat-input-wrap">
+          <textarea
+            id="chat-input"
+            class="chat-textarea"
+            placeholder="Ask anything: 'Where should I buy resistance bands for max profit?' or 'What's trending on Amazon right now?'"
+            rows="2"
+          ></textarea>
+        </div>
+        <button class="chat-send-main" id="chat-send-btn">➤</button>
+      </div>
+      <div class="chat-footer-hint">Enter to send • Shift+Enter for new line • Results sourced from live web scraping</div>
+    </div>
+
+    <!-- ── Side Panel ── -->
+    <div class="agent-side-panel">
+      <div class="card">
+        <div class="card-title" style="font-size:13px;margin-bottom:8px;">🛠 Available Tools</div>
+        <div class="agent-tool-list">
+          <div class="agent-tool-item"><span class="agent-tool-icon">🔍</span><div><strong>search_products</strong><div class="muted" style="font-size:11px;">Amazon, Flipkart, Meesho, Google Shopping</div></div></div>
+          <div class="agent-tool-item"><span class="agent-tool-icon">🏭</span><div><strong>find_suppliers</strong><div class="muted" style="font-size:11px;">IndiaMART, Alibaba, JustDial, TradeIndia</div></div></div>
+          <div class="agent-tool-item"><span class="agent-tool-icon">💱</span><div><strong>get_price_comparison</strong><div class="muted" style="font-size:11px;">Cross-platform price analysis</div></div></div>
+          <div class="agent-tool-item"><span class="agent-tool-icon">🥊</span><div><strong>check_competition</strong><div class="muted" style="font-size:11px;">Competitor count &amp; price range</div></div></div>
+          <div class="agent-tool-item"><span class="agent-tool-icon">📈</span><div><strong>get_trending_products</strong><div class="muted" style="font-size:11px;">Amazon Best Sellers by category</div></div></div>
+          <div class="agent-tool-item"><span class="agent-tool-icon">🔗</span><div><strong>analyze_product_url</strong><div class="muted" style="font-size:11px;">Deep-dive any product page URL</div></div></div>
+          <div class="agent-tool-item"><span class="agent-tool-icon">💰</span><div><strong>calculate_profit</strong><div class="muted" style="font-size:11px;">Margin, ROI, platform fees</div></div></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <div class="card-title" style="font-size:13px;margin-bottom:8px;">💡 Try These</div>
+        <div class="agent-examples">
+          <button class="agent-example-btn" data-chat-suggest="Where should I sell resistance bands for max profit? Compare Amazon vs Flipkart vs Meesho pricing">🏆 Max profit for resistance bands</button>
+          <button class="agent-example-btn" data-chat-suggest="Find me the cheapest suppliers for yoga mats with MOQ under 50 units on IndiaMART and Alibaba">🛒 Cheapest yoga mat suppliers</button>
+          <button class="agent-example-btn" data-chat-suggest="What are the top 10 trending products on Amazon India in fitness right now?">📊 Trending fitness products</button>
+          <button class="agent-example-btn" data-chat-suggest="If I buy phone cases for ₹50 and sell on Amazon at ₹299, what's my profit after all fees?">💰 Phone case profit analysis</button>
+          <button class="agent-example-btn" data-chat-suggest="Analyze my saved products and which one should I focus on to grow fastest?">📦 Analyze my saved products</button>
+          <button class="agent-example-btn" data-chat-suggest="Compare LED bulb suppliers on IndiaMART vs Alibaba. Which is cheaper per unit for 500 MOQ?">🏭 LED bulb supplier comparison</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <div class="card-title" style="font-size:13px;margin-bottom:8px;">🧠 How It Works</div>
+        <div class="agent-how-steps">
+          <div class="agent-how-step"><span class="agent-step-num">1</span><span>You ask a question</span></div>
+          <div class="agent-how-step"><span class="agent-step-num">2</span><span>AI decides which tools to call</span></div>
+          <div class="agent-how-step"><span class="agent-step-num">3</span><span>Scrapling + Scrapy fetch real data</span></div>
+          <div class="agent-how-step"><span class="agent-step-num">4</span><span>Self-correcting loop retries if poor data</span></div>
+          <div class="agent-how-step"><span class="agent-step-num">5</span><span>AI synthesizes profit-focused answer</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<!-- ═══ Settings Modal ═══ -->
+<div class="modal-overlay hidden" id="settings-modal" onclick="if(event.target===this)hideModal('settings-modal')">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">⚙️ Settings</div>
+      <button class="modal-close" onclick="hideModal('settings-modal')">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px;">
+
+      <!-- ── GLM-5.2 Primary API Key ── -->
+      <div class="input-group">
+        <label class="input-label" style="display:flex;align-items:center;gap:8px;">
+          🧠 GLM-5.2 API Key (Primary)
+          <span id="glm-key-status" class="key-status"></span>
+        </label>
+        <div class="key-input-row">
+          <input type="password" id="settings-glm-key" class="input" placeholder="nvapi-xxxxxxxxxxxxxxxxxxxx"
+            style="flex:1;font-family:monospace;font-size:13px;letter-spacing:0.5px;" autocomplete="off">
+          <button class="btn btn-sm" onclick="testApiKey('primary')" style="white-space:nowrap;">Test</button>
+          <button class="btn btn-sm btn-primary" onclick="saveApiKey('primary')" style="white-space:nowrap;">Save</button>
+        </div>
+        <div class="muted" style="margin-top:4px;font-size:11px;">
+          Used for: Trending analysis, product research, listing generation, business coaching
+        </div>
+      </div>
+
+      <!-- ── MiniMax-M3 Fallback API Key ── -->
+      <div class="input-group">
+        <label class="input-label" style="display:flex;align-items:center;gap:8px;">
+          🔄 MiniMax-M3 API Key (Fallback)
+          <span id="minimax-key-status" class="key-status"></span>
+        </label>
+        <div class="key-input-row">
+          <input type="password" id="settings-minimax-key" class="input" placeholder="nvapi-xxxxxxxxxxxxxxxxxxxx"
+            style="flex:1;font-family:monospace;font-size:13px;letter-spacing:0.5px;" autocomplete="off">
+          <button class="btn btn-sm" onclick="testApiKey('fallback')" style="white-space:nowrap;">Test</button>
+          <button class="btn btn-sm btn-primary" onclick="saveApiKey('fallback')" style="white-space:nowrap;">Save</button>
+        </div>
+        <div class="muted" style="margin-top:4px;font-size:11px;">
+          Auto-used when GLM-5.2 is degraded (400/503/429 errors). Get key at <a href="https://build.nvidia.com" target="_blank" style="color:var(--accent);">build.nvidia.com</a>
+        </div>
+      </div>
+
+      <!-- ── Data Management ── -->
+      <div class="input-group">
+        <label class="input-label">Data Management</label>
+        <button class="btn btn-danger" onclick="resetAllData()" style="width:100%;">🗑️ Reset All Data & Reload</button>
+        <div class="muted" style="margin-top:4px;">This deletes all saved items, settings, and the product database. The database will be re-seeded on reload.</div>
+      </div>
+      <div class="input-group">
+        <label class="input-label">About</label>
+        <div class="muted">Solo E-Commerce Command Center v3.0 — Global Edition<br>Primary AI: GLM-5.2 via NVIDIA NIM<br>Fallback AI: MiniMax-M3 via NVIDIA NIM<br>Currency rates by Frankfurter API<br>Data stored in SQLite (server-side persistent)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Product Detail Modal ═══ -->
+<div class="modal-overlay hidden" id="product-detail-modal" onclick="if(event.target===this)closeProductDetail()">
+  <div class="modal" style="max-width:860px;width:95vw;max-height:92vh;overflow-y:auto;padding:0;">
+    <!-- Header -->
+    <div id="pdm-header" style="background:linear-gradient(135deg,rgba(99,102,241,0.15),rgba(139,92,246,0.1));padding:24px 28px 20px;border-bottom:1px solid var(--border);position:sticky;top:0;backdrop-filter:blur(12px);z-index:10;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
+        <div style="flex:1;">
+          <div id="pdm-category" style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;"></div>
+          <h2 id="pdm-name" style="margin:0;font-size:20px;font-weight:700;line-height:1.3;color:var(--text-primary);"></h2>
+          <div id="pdm-score-row" style="display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap;"></div>
+        </div>
+        <button onclick="closeProductDetail()" style="background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-secondary);width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:24px 28px;">
+      <!-- Loading -->
+      <div id="pdm-loading" style="text-align:center;padding:60px 0;">
+        <div class="spinner" style="margin:0 auto 16px;"></div>
+        <div style="color:var(--text-secondary);">AI analyzing product...</div>
+        <div class="muted" style="font-size:12px;margin-top:4px;">Fetching platforms, age data, seasonality (~15s)</div>
+      </div>
+
+      <!-- Content (hidden until loaded) -->
+      <div id="pdm-content" style="display:none;">
+
+        <!-- Description + Why Selling -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+          <div class="card" style="padding:16px;">
+            <div style="font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📦 What Is This Product</div>
+            <div id="pdm-description" style="color:var(--text-secondary);font-size:14px;line-height:1.6;"></div>
+          </div>
+          <div class="card" style="padding:16px;">
+            <div style="font-size:11px;font-weight:600;color:var(--positive);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">🚀 Why It's Selling</div>
+            <div id="pdm-why" style="color:var(--text-secondary);font-size:14px;line-height:1.6;"></div>
+          </div>
+        </div>
+
+        <!-- Key Metrics Row -->
+        <div id="pdm-metrics" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;"></div>
+
+        <!-- Platforms — sorted highest to lowest -->
+        <div class="card" style="padding:16px;margin-bottom:20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+            <div style="font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1px;">🏪 All Platforms — Sorted by Sales Volume</div>
+            <div id="pdm-platforms-meta" style="font-size:11px;color:var(--text-tertiary);"></div>
+          </div>
+          <!-- Sort tabs -->
+          <div id="pdm-platform-sorts" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;"></div>
+          <!-- Platform cards grid -->
+          <div id="pdm-platforms" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;"></div>
+        </div>
+
+        <!-- Age Groups + Gender -->
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:20px;">
+          <div class="card" style="padding:16px;">
+            <div style="font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">👥 Age Groups Buying</div>
+            <div id="pdm-age-groups" style="display:flex;flex-direction:column;gap:8px;"></div>
+          </div>
+          <div class="card" style="padding:16px;">
+            <div style="font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">⚧ Gender Split</div>
+            <div id="pdm-gender" style="display:flex;flex-direction:column;gap:10px;"></div>
+            <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">
+              <div style="font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">🎯 Target Audience</div>
+              <div id="pdm-audience" style="color:var(--text-secondary);font-size:13px;line-height:1.5;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Seasonality -->
+        <div class="card" style="padding:16px;margin-bottom:20px;background:rgba(99,102,241,0.05);border-color:rgba(99,102,241,0.2);">
+          <div style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">📅 Seasonality & Sell-Through Window</div>
+          <div id="pdm-seasonality" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;"></div>
+        </div>
+
+        <!-- Suppliers Section -->
+        <div class="card" style="padding:16px;margin-bottom:20px;border-color:rgba(245,158,11,0.25);background:rgba(245,158,11,0.03);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <div style="font-size:11px;font-weight:600;color:var(--warning);text-transform:uppercase;letter-spacing:1px;">🏭 Suppliers — Where to Source This Product</div>
+            <div id="pdm-suppliers-meta" style="font-size:11px;color:var(--text-tertiary);"></div>
+          </div>
+          <!-- Filter tabs -->
+          <div id="pdm-supplier-filters" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;"></div>
+          <!-- Supplier cards grid -->
+          <div id="pdm-suppliers" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;"></div>
+        </div>
+
+        <!-- Seller Tips + Mistakes -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+          <div class="card" style="padding:16px;">
+            <div style="font-size:11px;font-weight:600;color:var(--positive);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">✅ Seller Tips</div>
+            <ol id="pdm-tips" style="margin:0;padding-left:18px;color:var(--text-secondary);font-size:13px;line-height:1.8;"></ol>
+          </div>
+          <div class="card" style="padding:16px;">
+            <div style="font-size:11px;font-weight:600;color:var(--danger);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">⚠️ Common Mistakes</div>
+            <ol id="pdm-mistakes" style="margin:0;padding-left:18px;color:var(--text-secondary);font-size:13px;line-height:1.8;"></ol>
+          </div>
+        </div>
+
+        <!-- Risk + Opportunity -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+          <div class="card" style="padding:16px;border-color:rgba(244,63,94,0.2);">
+            <div style="font-size:11px;font-weight:600;color:var(--danger);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">🚨 Risk Factors</div>
+            <ul id="pdm-risks" style="margin:0;padding-left:18px;color:var(--text-secondary);font-size:13px;line-height:1.8;"></ul>
+          </div>
+          <div class="card" style="padding:16px;border-color:rgba(16,185,129,0.2);">
+            <div style="font-size:11px;font-weight:600;color:var(--positive);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">💡 Opportunity</div>
+            <div id="pdm-opportunity" style="color:var(--text-secondary);font-size:14px;line-height:1.6;"></div>
+            <div style="margin-top:12px;">
+              <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px;">Source Hint</div>
+              <div id="pdm-supplier" style="color:var(--accent);font-size:13px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Profit Calculator + Save ─────────────────────── -->
+        <div id="pdm-profit-calc" class="card pdm-calc-card" style="margin-bottom:20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <div style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:1px;">💰 Cost · Sell · Profit Calculator</div>
+            <button id="pdm-calc-toggle" style="font-size:11px;background:none;border:none;color:var(--text-secondary);cursor:pointer;">▼ Show</button>
+          </div>
+          <div id="pdm-calc-body" style="display:none;">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;">
+              <div>
+                <div class="pdm-calc-label">Cost Price (₹)</div>
+                <input id="pdm-cp" type="number" class="input pdm-calc-input" placeholder="e.g. 150" min="0">
+              </div>
+              <div>
+                <div class="pdm-calc-label">Selling Price (₹)</div>
+                <input id="pdm-sp" type="number" class="input pdm-calc-input" placeholder="e.g. 499" min="0">
+              </div>
+              <div>
+                <div class="pdm-calc-label">Platform</div>
+                <select id="pdm-plat" class="select pdm-calc-input">
+                  <option value="0.08">Meesho (8%)</option>
+                  <option value="0.10">Flipkart (10%)</option>
+                  <option value="0.15" selected>Amazon (15%)</option>
+                  <option value="0.12">eBay (12%)</option>
+                  <option value="0.05">Own Website (5%)</option>
+                </select>
+              </div>
+              <div>
+                <div class="pdm-calc-label">Shipping (₹)</div>
+                <input id="pdm-ship" type="number" class="input pdm-calc-input" placeholder="e.g. 50" value="50" min="0">
+              </div>
+              <div>
+                <div class="pdm-calc-label">Packaging (₹)</div>
+                <input id="pdm-pack" type="number" class="input pdm-calc-input" placeholder="e.g. 20" value="20" min="0">
+              </div>
+              <div>
+                <div class="pdm-calc-label">Monthly Qty</div>
+                <input id="pdm-qty" type="number" class="input pdm-calc-input" placeholder="e.g. 50" value="50" min="1">
+              </div>
+            </div>
+            <!-- Live results -->
+            <div id="pdm-calc-results" class="pdm-calc-results" style="display:none;">
+              <div class="pdm-calc-stat"><div class="pdm-calc-stat-val" id="pcr-profit">—</div><div class="pdm-calc-stat-lbl">Profit / Unit</div></div>
+              <div class="pdm-calc-stat"><div class="pdm-calc-stat-val" id="pcr-margin">—</div><div class="pdm-calc-stat-lbl">Net Margin %</div></div>
+              <div class="pdm-calc-stat"><div class="pdm-calc-stat-val" id="pcr-roi">—</div><div class="pdm-calc-stat-lbl">ROI %</div></div>
+              <div class="pdm-calc-stat"><div class="pdm-calc-stat-val" id="pcr-monthly">—</div><div class="pdm-calc-stat-lbl">Monthly Profit</div></div>
+              <div class="pdm-calc-stat"><div class="pdm-calc-stat-val" id="pcr-breakeven">—</div><div class="pdm-calc-stat-lbl">Break-even Units</div></div>
+            </div>
+            <button id="pdm-save-btn" class="btn btn-primary" style="width:100%;margin-top:12px;display:none;">
+              💾 Save to My List with These Numbers
+            </button>
+          </div>
+        </div>
+
+      </div><!-- /pdm-content -->
+    </div><!-- /body -->
+  </div>
+</div>
+
+
+<!-- ═══ Scripts (order matters) ═══ -->
+
+<script src="https://unpkg.com/dexie@4/dist/dexie.js"></script>
+<script src="js/data-seed.js"></script>
+<script src="js/ui-utils.js"></script>
+<script src="js/db.js"></script>
+<script src="js/currency.js"></script>
+<script src="js/ai-engine.js"></script>
+<!-- v2.2 Engines (load before modules that depend on them) -->
+<script src="js/financial-engine.js"></script>
+<script src="js/tax-engine.js"></script>
+<script src="js/export-engine.js"></script>
+<script src="js/supplier-communicator.js"></script>
+<script src="js/research-engine.js"></script>
+<script src="js/competitor-tracker.js"></script>
+<script src="js/saved-detail-modal.js"></script>
+<script src="js/ai-coach.js"></script>
+<!-- Page Modules -->
+<script src="js/dashboard.js"></script>
+<script src="js/trending.js"></script>
+<script src="js/search.js"></script>
+<script src="js/suppliers.js"></script>
+<script src="js/calculator.js"></script>
+<script src="js/chatbot.js"></script>
+<script src="js/saved.js"></script>
+<script src="js/app.js"></script>
+<!-- Containers -->
+<div id="modal-container"></div>
+</body>
+</html>

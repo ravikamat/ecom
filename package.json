@@ -1,0 +1,14 @@
+{
+  "name": "eco-command-center",
+  "version": "2.5.0",
+  "description": "Solo E-Commerce Command Center with live web scraping",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "crawlee": "^3.12.0",
+    "cheerio": "^1.0.0"
+  }
+}
