@@ -787,34 +787,49 @@
     <section class="section" id="architecture">
         <div class="section-header">
             <span class="section-num" style="background:var(--amber);color:#fff">★</span>
-            <h2>Codebase Architecture & Files</h2>
+            <h2>Deep Dive: Codebase Architecture & Files</h2>
         </div>
 
-        <p>The project uses a lightweight frontend communicating with an Express.js/SQLite backend to bypass CORS restrictions and securely store data.</p>
+        <p>ECO Command Center v2 is structured as a monolithic Node.js backend serving a lightweight, dependency-free vanilla JavaScript frontend. This ensures ultra-fast performance, localized privacy, and the ability to bypass cross-origin browser restrictions during web scraping.</p>
         
-        <h3 style="margin-top:20px;">Backend (Server)</h3>
+        <h3 style="margin-top:20px;">🖥️ Backend Architecture</h3>
         <ul style="margin-left: 20px; margin-bottom: 20px;">
-            <li><strong><code>server.js</code></strong>: The monolithic backend controller. Handles static file serving, SQLite database initialization, API routing, web scraping, AI orchestration, and the Deep Research feedback loop.</li>
-            <li><strong><code>db/sqlite.js</code></strong>: Database schema and connection logic for the persistent SQLite database (<code>eco.db</code>). Stores application settings and saved products.</li>
+            <li><strong><code>server.js</code> (2,300+ lines)</strong>: The heart of the application. 
+              <ul style="margin-top: 8px;">
+                <li><strong>Central <code>CONFIG</code></strong>: Manages all caching TTLs, rate limits (via sliding window), and request timeouts.</li>
+                <li><strong>API Routing</strong>: Exposes RESTful endpoints (<code>/api/trending/page</code>, <code>/api/ai-status</code>, <code>/api/db/settings</code>).</li>
+                <li><strong>Deep Research Controller</strong>: Orchestrates the multi-round AI and web scraper feedback loop.</li>
+                <li><strong>AI Shim</strong>: Manages HTTP requests to the NVIDIA NIM endpoint, parsing SSE streams, executing server-side tool calls, and handling the auto-fallback logic between GLM-5.2 and MiniMax-M3.</li>
+              </ul>
+            </li>
+            <li><strong><code>db/sqlite.js</code></strong>: 
+              <ul style="margin-top: 8px;">
+                <li>Uses <code>better-sqlite3</code> (or equivalent driver) to initialize the <code>eco.db</code> file locally.</li>
+                <li>Defines strict schemas for <code>Settings</code> (key-value pairs) and <code>SavedItems</code>.</li>
+                <li>Exposes direct CRUD operations to <code>server.js</code> for secure local persistence.</li>
+              </ul>
+            </li>
         </ul>
 
-        <h3>Frontend (Client-Side Logic)</h3>
-        <p>All frontend scripts are located in the <code>/js/</code> directory:</p>
+        <h3 style="margin-top:20px;">🌐 Frontend Architecture (Client-Side)</h3>
+        <p>All frontend scripts are located exclusively in the <code>/js/</code> directory to ensure strict separation of concerns:</p>
         <ul style="margin-left: 20px; margin-bottom: 20px;">
-            <li><strong><code>app.js</code></strong>: Core initialization, routing logic, and Settings Modal logic for dual API keys.</li>
-            <li><strong><code>trending.js</code></strong>: Handles the trending product UI, infinite scroll, live saving, and triggering the Deep Research loop.</li>
-            <li><strong><code>search.js</code></strong>: Manages multi-platform search functionality and price comparison UI.</li>
-            <li><strong><code>dashboard.js</code></strong>: Computes global statistics and renders the overview charts.</li>
-            <li><strong><code>calculator.js</code></strong>: The complex financial logic for True Cost, Return Reserve, ROI, and break-even metrics.</li>
-            <li><strong><code>saved.js</code></strong>: Manages CRUD operations for the user's saved product database.</li>
-            <li><strong><code>chatbot.js</code></strong>: The frontend AI interface. Supports streaming and renders rich HTML product cards.</li>
-            <li><strong><code>competitor-tracker.js</code></strong> & <strong><code>suppliers.js</code></strong>: Specialized logic for pricing strategy and supplier discovery.</li>
+            <li><strong><code>app.js</code></strong>: Bootstraps the application, restores user sessions/themes, manages SPA routing, and handles the Settings Modal logic (secure dual API key loading and testing).</li>
+            <li><strong><code>trending.js</code></strong>: Maps JSON arrays of products into HTML. Maintains <code>_trendPage</code> state, utilizes an <code>IntersectionObserver</code> for infinite scrolling and background pre-fetching, and uses fuzzy string matching to visually flag already-saved products.</li>
+            <li><strong><code>search.js</code></strong>: Handles the complex multi-platform query string builder and parses cross-origin JSON responses (proxied through the backend) into price comparison tables.</li>
+            <li><strong><code>dashboard.js</code></strong>: Ingests aggregated backend statistics and utilizes null coalescing to render resilient charting data.</li>
+            <li><strong><code>calculator.js</code></strong>: Contains the proprietary <code>FinancialEngine</code> logic. Listens for DOM input events to recalculate True Cost, Return Reserves, and ROI in real-time.</li>
+            <li><strong><code>saved.js</code></strong>: The presentation layer for the SQLite database. Implements sorting, filtering, and deleting of bookmarked items.</li>
+            <li><strong><code>chatbot.js</code></strong>: Connects to the backend via Server-Sent Events (SSE). Parses JSON streams into typing indicators, raw text, and renders rich HTML widgets (Product Cards and Price Tables) via the <code>_renderToolResult()</code> function.</li>
+            <li><strong><code>db.js</code></strong>: A legacy wrapper refactored to act as an asynchronous HTTP client proxy to the new SQLite REST endpoints, ensuring backward compatibility.</li>
+            <li><strong><code>ai-engine.js</code></strong>: Client-side helpers for formatting chat histories and separating system vs. user prompt roles.</li>
+            <li><strong><code>competitor-tracker.js</code> & <code>suppliers.js</code></strong>: Specialized modules for pricing elasticity and rendering B2B supplier contact cards.</li>
         </ul>
 
-        <h3>Styling & Layout</h3>
+        <h3 style="margin-top:20px;">🎨 Styling & DOM Layout</h3>
         <ul style="margin-left: 20px;">
-            <li><strong><code>index.html</code></strong>: The single-page application (SPA) layout containing all section containers.</li>
-            <li><strong><code>css/styles.css</code></strong>: A premium dark-theme design system using CSS variables. Contains all styling for layout, animations, and rich chat cards.</li>
+            <li><strong><code>index.html</code></strong>: The master structural template. Contains all <code>&lt;section&gt;</code> wrappers, the Top Bar, the Settings Modal, and the Floating Chat widget.</li>
+            <li><strong><code>css/styles.css</code></strong>: A premium, unified dark-theme design system using CSS Variables. Contains specific logic for glassmorphism, shimmer loading states (<code>#btn-deep-research</code>), status indicator dots, and responsive grid layouts.</li>
         </ul>
     </section>
 
