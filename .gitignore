@@ -5,3 +5,4 @@ node_modules/
 storage/
 uploads/
 .env
+node_modules
