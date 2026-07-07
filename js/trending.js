@@ -1226,6 +1226,13 @@ async function deepResearchTrending() {
     // Clear existing and render deep research results
     tbody.innerHTML = '';
     const currency = AppState.displayCurrency || 'INR';
+
+    // Store for click handler — reuse existing live trending handlers
+    window._lastLiveTrending = items;
+    window._allTrendProducts = items;
+    window._trendHasMore = false;
+
+
     items.forEach((p, i) => {
       p._winnerScore = p.aiScore || computeWinnerScore(p);
       const score = p._winnerScore;
@@ -1233,24 +1240,33 @@ async function deepResearchTrending() {
       const priceDisplay = p.price ? formatPrice(
         CurrencyEngine.convert(parseFloat(String(p.price).replace(/[^0-9.]/g, '')) || 0, currency, currency), currency
       ) : '—';
+      const isSaved = _isProductSaved(p.name);
+      const saveBtn = isSaved
+        ? `<button class="btn btn-sm" disabled style="opacity:0.5;cursor:default;">✓ Saved</button>`
+        : `<button class="btn btn-sm" data-action="save-live-trend" data-index="${i}">Save</button>`;
 
-      tbody.innerHTML += `<tr class="product-row" data-idx="${i}" style="cursor:pointer;">
-        <td><strong>${p.name || '—'}</strong></td>
+      tbody.innerHTML += `<tr class="product-row" data-idx="${i}">
+        <td>
+          <span data-action="open-product-detail" data-index="${i}"
+            style="cursor:pointer;font-weight:600;border-bottom:1px dashed var(--accent);color:var(--text-primary);"
+            onmouseover="this.style.color='var(--accent)'"
+            onmouseout="this.style.color='var(--text-primary)'">
+            ${p.name || '—'}
+          </span>
+          ${isSaved ? ' <span class="tag" style="font-size:9px;background:rgba(34,197,94,0.15);color:#22c55e;">✓ Saved</span>' : ''}
+        </td>
         <td>${badge}</td>
         <td>${p.country || country}</td>
         <td><span class="tag">${p.category || '—'}</span></td>
-        <td>${p.aiDemand != null ? p.aiDemand + '/100' : (p.demand || '—')}</td>
-        <td>${p.aiMargin != null ? p.aiMargin + '/100' : (p.margin ? p.margin + '%' : '—')}</td>
-        <td>${p.aiCompetition != null ? p.aiCompetition + '/100 risk' : (p.competition || '—')}</td>
-        <td>${p.platform || '—'}</td>
-        <td>${priceDisplay}</td>
-        <td><button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); quickSave(${i})">💾 Save</button></td>
+        <td>${p.aiDemand != null ? demandBar(p.aiDemand) : demandBar(p.demand || 50)}</td>
+        <td class="positive-text mono">${p.aiMargin != null ? p.aiMargin + '%' : (p.margin ? p.margin + '%' : '—')}</td>
+        <td>${competitionTag(p.competition || 'Medium')}</td>
+        <td>${renderTrendingPlatformPills(p, i)}</td>
+        <td class="price mono">${priceDisplay}</td>
+        <td>${saveBtn}</td>
       </tr>`;
     });
 
-    // Store for click handler
-    window._allTrendProducts = items;
-    window._trendHasMore = false;
 
     Toast.success(`🔬 Deep research complete: ${data.rounds} rounds, ${data.total} products found!`);
   } catch (e) {

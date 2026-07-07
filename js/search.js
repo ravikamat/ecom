@@ -237,7 +237,7 @@ async function runSearchPage(append = false) {
               </div>
               <div class="table-wrap">
                 <table><thead><tr>
-                  <th>Product</th><th>Price</th><th>Rating</th><th>Reviews</th><th>Source</th>
+                  <th>Product</th><th>Price</th><th>Rating</th><th>Reviews</th><th>Source</th><th>Action</th>
                 </tr></thead><tbody class="results-tbody"></tbody></table>
               </div>`;
             container.appendChild(platCard);
@@ -260,14 +260,15 @@ async function runSearchPage(append = false) {
                 data-action="open-search-detail"
                 data-key="${listKey}"
                 title="Click for full analysis"
-                style="cursor:pointer;border-bottom:1px dashed var(--accent);color:var(--text-primary);"
+                style="cursor:pointer;border-bottom:1px dashed var(--accent);color:var(--text-primary);font-weight:600;"
                 onmouseover="this.style.color='var(--accent)'"
                 onmouseout="this.style.color='var(--text-primary)'"
-              >${l.name || '—'}</span> ${sponsored}</td>
-              <td class="price mono"><strong>${price > 0 ? formatPrice(price, currency) : (l.priceFormatted || '—')}</strong></td>
-              <td class="mono">${l.rating ? l.rating+'★' : '—'}</td>
-              <td class="mono">${l.reviews ? fmtNum(l.reviews) : '—'}</td>
-              <td class="muted" style="font-size:11px;">${l.url ? `<a href="${l.url}" target="_blank" style="color:var(--accent);font-size:10px;">↗ ${l.source||'View'}</a>` : (l.source||'')}</td>
+              >${l.name || '\u2014'}</span> ${sponsored}</td>
+              <td class="price mono"><strong>${price > 0 ? formatPrice(price, currency) : (l.priceFormatted || '\u2014')}</strong></td>
+              <td class="mono">${l.rating ? l.rating+'\u2605' : '\u2014'}</td>
+              <td class="mono">${l.reviews ? fmtNum(l.reviews) : '\u2014'}</td>
+              <td class="muted" style="font-size:11px;">${l.url ? `<a href="${l.url}" target="_blank" style="color:var(--accent);font-size:10px;">\u2197 ${l.source||'View'}</a>` : (l.source||'')}</td>
+              <td><button class="btn btn-sm" data-action="save-search-live" data-key="${listKey}">Save</button></td>
             `;
             tbody.appendChild(row);
           });
@@ -352,6 +353,33 @@ document.addEventListener('click', async function(e) {
   else Toast.info(r.message);
 });
 
+/* ── Save live search result handler ───────────────────────── */
+document.addEventListener('click', async function(e) {
+  const btn = e.target.closest('[data-action="save-search-live"]');
+  if (!btn) return;
+  const key = btn.dataset.key;
+  const listing = window._searchListings?.[key];
+  if (!listing) return;
+  const r = await addSaved({
+    name:     listing.name || 'Product',
+    category: listing.category || '',
+    platform: listing.platform || '',
+    country:  AppState.selectedCountry || 'India',
+    sp:       listing.price || 0,
+    currency: listing.currency || AppState.displayCurrency,
+    margin:   listing.margin || 0,
+    source:   'search',
+  });
+  if (r?.success !== false) {
+    Toast.success(`Saved "${listing.name}"`);
+    btn.textContent = '\u2713 Saved';
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+  } else {
+    Toast.info(r.message || 'Already saved');
+  }
+});
+
 /* ── Open product detail from search results ─────────────── */
 document.addEventListener('click', function(e) {
   const el = e.target.closest('[data-action="open-search-detail"]');
@@ -370,7 +398,7 @@ document.addEventListener('click', function(e) {
     margin:       listing.margin || 0,
     competition:  listing.competition || 'Medium',
     platformCount:1,
-    _winnerScore: computeWinnerScore({ demand: listing.demand || 60, margin: listing.margin || 0, competition: 'Medium', platformCount: 1 }),
+    _winnerScore: computeWinnerScore({ demand: listing.demand || 60, margin: listing.margin || 0, competition: listing.competition || 'Medium', platformCount: 1 }),
   };
   if (typeof openProductDetail === 'function') openProductDetail(p);
 });

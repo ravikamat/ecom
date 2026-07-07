@@ -27,6 +27,8 @@ import {
   dbGetProducts, dbGetProductById, dbGetSuppliers, dbGetSupplierById, dbGetPlatforms
 } from './db/sqlite.js';
 
+import { SupplierDiscoveryEngine } from './src/supplier-discovery-engine.js';
+
 // ✅ NEW: Import all the fix modules
 import { Validators } from './src/validators.js';
 import { logger } from './src/logger.js';
@@ -234,6 +236,12 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/search/upload' && req.method === 'POST') return handleImageSearchUpload(req, res);
   if (pathname === '/api/url-lookup'          && req.method === 'POST')   return handleURLLookup(req, res);
   if (pathname === '/api/trending/deep-research' && req.method === 'POST') return handleDeepResearch(req, res);
+  
+  // ✅ NEW: Supplier Discovery Engine Routes
+  if (pathname === '/api/suppliers/discover' && req.method === 'POST') return handleSupplierDiscover(req, res);
+  if (pathname === '/api/suppliers/product' && req.method === 'GET') return handleSupplierProduct(req, res, reqUrl);
+  if (pathname === '/api/suppliers/feedback' && req.method === 'POST') return handleSupplierFeedback(req, res);
+  if (pathname === '/api/suppliers/auto-discover' && req.method === 'GET') return handleSupplierAutoDiscover(req, res);
   
   // ✅ NEW: Health check + monitoring endpoints
   if (pathname === '/api/health' && req.method === 'GET') {
@@ -1873,6 +1881,8 @@ async function handleTrendingPage(req, res) {
           if (!existing.has((ai.name||'').toLowerCase())) { items.push(ai); existing.add(ai.name.toLowerCase()); }
         }
       }
+      // Filter non-products before paginating
+      items = filterProductNames(items);
       // Paginate slice
       const start   = (page - 1) * perPage;
       const slice   = items.slice(start, start + perPage);
@@ -1892,6 +1902,18 @@ async function handleTrendingPage(req, res) {
     console.error('[Trending Page] Error:', e);
     jsonErr(res, e.message, 500);
   }
+}
+
+async function filterProductNames(items) {
+  if (!Array.isArray(items)) return [];
+  const NON_PRODUCT = /^(top\s|best\s|trending\s|popular\s|cheap\s|buy\s|shop\s|online\s|new\s|latest\s|review|guide|how to|what is|list of|\d+\s+best|\d+\s+top|products?$|items?$|goods?$|things?$|accessories$|supplies$|essentials$)/i;
+  return items.filter(p => {
+    const name = (p.name || '').trim();
+    if (!name || name.length < 5) return false;
+    if (NON_PRODUCT.test(name)) return false;
+    if (name.split(/\s+/).length < 2) return false; // single word = category
+    return true;
+  });
 }
 
 async function callAIForTrendingProducts(query, country, count, page) {
@@ -2283,6 +2305,17 @@ async function handleDeepResearch(req, res) {
       } catch(e) { break; }
     }
 
+    // Filter out non-product items (categories, generic terms, articles)
+    const NON_PRODUCT_PATTERNS = /^(top|best|trending|popular|cheap|affordable|buy|shop|online|new|latest|review|guide|how to|what is|list of|\d+ best|\d+ top|products?$|items?$|goods?$|things?$)/i;
+    const MIN_NAME_WORDS = 2;
+    allProducts = allProducts.filter(p => {
+      const name = (p.name || '').trim();
+      if (!name || name.length < 4) return false;
+      if (NON_PRODUCT_PATTERNS.test(name)) return false;
+      if (name.split(' ').length < MIN_NAME_WORDS) return false;
+      return true;
+    });
+
     // 4. Final AI ranking
     let ranking = allProducts;
     if (allProducts.length > 0) {
@@ -2308,7 +2341,72 @@ async function handleDeepResearch(req, res) {
     }
 
     jsonOk(res, { items: ranking, rounds: round, events, total: allProducts.length, hasMore: false });
+
   } catch(e) { jsonErr(res, e.message, 500); }
+}
+
+// ─── Supplier Discovery Engine Initialization & Handlers ─────────
+const supplierEngine = new SupplierDiscoveryEngine({
+  db: getDB(),
+  nimApiKey: PRIMARY_API_KEY,
+  nimFallbackKey: FALLBACK_API_KEY
+});
+supplierEngine.init().then(() => console.log('✅ Supplier Discovery Engine initialized')).catch(e => console.warn('❌ Supplier Engine Init Error:', e.message));
+
+async function handleSupplierDiscover(req, res) {
+  try {
+    const body = await readBody(req);
+    const { productName, category, geo, useLearning } = body;
+    if (!productName || productName.length < 2) {
+      jsonErr(res, 400, 'Product name required (min 2 chars)');
+      return;
+    }
+    const result = await supplierEngine.findSuppliers({
+      productName, category: category || '', geo: geo || 'India', useLearning: useLearning !== false
+    });
+    jsonOk(res, result);
+  } catch (e) {
+    console.error('Discovery error:', e);
+    jsonErr(res, 500, e.message);
+  }
+}
+
+async function handleSupplierProduct(req, res, reqUrl) {
+  try {
+    const name = reqUrl.searchParams.get('name');
+    if (!name) {
+      jsonErr(res, 400, 'Product name required');
+      return;
+    }
+    const suppliers = await supplierEngine.getSuppliersForProduct(name);
+    jsonOk(res, suppliers);
+  } catch (e) {
+    jsonErr(res, 500, e.message);
+  }
+}
+
+async function handleSupplierFeedback(req, res) {
+  try {
+    const body = await readBody(req);
+    const { supplierId, feedback } = body;
+    const result = await supplierEngine.submitFeedback(supplierId, feedback);
+    jsonOk(res, result);
+  } catch (e) {
+    jsonErr(res, 500, e.message);
+  }
+}
+
+async function handleSupplierAutoDiscover(req, res) {
+  try {
+    const db = getDB();
+    const trending = db.prepare ? 
+      db.prepare('SELECT name, category FROM trending_products WHERE created_at > datetime("now", "-7 days") LIMIT 10').all() :
+      await db.all('SELECT name, category FROM trending_products WHERE created_at > datetime("now", "-7 days") LIMIT 10');
+    const results = await supplierEngine.learning.autoDiscover(trending);
+    jsonOk(res, { scheduled: results.length, products: results });
+  } catch (e) {
+    jsonErr(res, 500, e.message);
+  }
 }
 
 // ─── Start ──────────────────────────────────────────────────
