@@ -44,7 +44,7 @@ function goTo(page) {
           totalProducts: saved.length,
           avgMargin: saved.length ? Math.round(saved.reduce((s,p) => s + (p.margin||0), 0) / saved.length) : 0,
           reorderCount: saved.filter(p => (p.stock||0) <= (p.reorderPoint||5)).length,
-          topProduct: saved.sort((a,b) => (b.margin||0)-(a.margin||0))[0]?.name || 'None',
+          topProduct: [...saved].sort((a,b) => (b.margin||0) - (a.margin||0))[0]?.name || 'None',
         });
       } catch(e) { /* non-critical */ }
     }, 800);

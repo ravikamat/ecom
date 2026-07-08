@@ -48,7 +48,7 @@ async function initCalculator() {
   try {
     const online = await AIEngine.checkConnection();
     if (online && sel) {
-      const countryName = country === 'all' ? 'USA' : country;
+      const countryName = country === 'all' ? 'All Countries' : country;
       const countryConf = (typeof COUNTRY_CONFIG !== 'undefined' && COUNTRY_CONFIG[country]) ? COUNTRY_CONFIG[country] : null;
       const curr = countryConf?.currency || AppState.displayCurrency || 'USD';
 
@@ -241,7 +241,7 @@ async function _fetchMarketComparison(productName) {
 
   const country = AppState.selectedCountry;
   const currency = AppState.displayCurrency;
-  const countryName = country === 'all' ? 'USA' : country;
+  const countryName = country === 'all' ? 'All Countries' : country;
 
   container.innerHTML = `
     <div class="card" style="margin-top:8px;">
@@ -378,7 +378,7 @@ async function aiOptimizePrice() {
     </div>`;
 
   // Run AI optimization and live scraping in parallel
-  const countryName = country === 'all' ? 'USA' : country;
+  const countryName = country === 'all' ? 'All Countries' : country;
 
   const [aiResult, scrapeResult] = await Promise.allSettled([
     AIEngine.optimizePrice({ name, cost: base, currency, platform, country }),
@@ -471,7 +471,7 @@ async function fetchLiveMarketPrice() {
 
   const country = AppState.selectedCountry;
   const currency = AppState.displayCurrency;
-  const countryName = country === 'all' ? 'USA' : country;
+  const countryName = country === 'all' ? 'All Countries' : country;
 
   // Ensure the container exists
   let container = document.getElementById('live-market-prices');

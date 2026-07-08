@@ -12,12 +12,7 @@ const SavedDetailModal = (function() {
 
   // ─── Open Modal ───
   async function open(productId, db) {
-    if (!db || !db.products) {
-      console.error('DB not available');
-      return;
-    }
-
-    currentProduct = await db.products.get(productId);
+    currentProduct = await getSavedById(productId);
     if (!currentProduct) {
       console.error('Product not found:', productId);
       return;
@@ -27,7 +22,7 @@ const SavedDetailModal = (function() {
     currentProduct.sellingPrice = currentProduct.sp || currentProduct.sellingPrice || 0;
     currentProduct.basePrice = currentProduct.cp || currentProduct.basePrice || 0;
     currentProduct.costPrice = currentProduct.cp || currentProduct.costPrice || 0;
-    currentProduct.monthlyUnits = currentProduct.moq * 3 || currentProduct.monthlyUnits || 100;
+    currentProduct.monthlyUnits = currentProduct.monthlyUnits || (currentProduct.moq ? currentProduct.moq * 3 : 100);
     currentProduct.dailySalesRate = currentProduct.dailySales || 3;
     currentProduct.platformFees = currentProduct.platformFees || currentProduct.sellingPrice * 0.15;
     currentProduct.shippingCost = currentProduct.shippingCost || 50;
@@ -39,7 +34,7 @@ const SavedDetailModal = (function() {
     if (!currentProduct.ebitda && typeof FinancialEngine !== 'undefined') {
       const analysis = FinancialEngine.analyzeProduct(currentProduct);
       Object.assign(currentProduct, analysis);
-      await db.products.put(currentProduct);
+      await updateSaved(productId, analysis);
     }
 
     renderModal();
@@ -353,7 +348,7 @@ const SavedDetailModal = (function() {
               throw new Error('Database not available');
             }
             
-            const result = await window.db.products.put(p);
+            const result = await updateSaved(p.id, p);
             if (result === false) {
               throw new Error('Save operation returned false');
             }
@@ -515,7 +510,7 @@ const SavedDetailModal = (function() {
               throw new Error('Database not available');
             }
             
-            const result = await window.db.products.put(p);
+            const result = await updateSaved(p.id, p);
             if (result === false) {
               throw new Error('Save operation returned false');
             }
@@ -735,7 +730,7 @@ const SavedDetailModal = (function() {
     // Platform export handlers
     setTimeout(() => {
       container.querySelectorAll('.btn-export').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
           const platform = btn.dataset.platform;
           if (typeof ExportEngine !== 'undefined') {
             let result;
@@ -753,9 +748,7 @@ const SavedDetailModal = (function() {
               ExportEngine.download(result.content, result.filename, result.mime);
               p[`exportedTo${platform.charAt(0).toUpperCase() + platform.slice(1)}`] = true;
               p.lastExportedAt = new Date().toISOString();
-              if (window.db && window.db.products) {
-                window.db.products.put(p);
-              }
+              await updateSaved(p.id, p);
             }
           }
         });
@@ -902,6 +895,7 @@ const SavedDetailModal = (function() {
         Toast.error('Failed to update product: ' + (err.message || 'Unknown error'));
       }
     });
+    }
 
     // Delete
     document.getElementById('modal-delete-btn').addEventListener('click', async () => {
