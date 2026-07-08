@@ -136,7 +136,11 @@ const FinancialEngine = (function() {
     const returns = (p.returnRate || 0.05) * revenue;
     const operatingExpenses = (p.operatingExpensesMonthly || 0);
     const interest = (p.loanInterest || 0);
-    const tax = (p.taxRate || 0.18) * (revenue - cogs - operatingExpenses - interest);
+     
+    // Fixed: Ensure tax is never negative (only apply tax if there's positive taxable income)
+    const taxableIncome = Math.max(0, revenue - cogs - operatingExpenses - interest);
+    const tax = (p.taxRate || 0.18) * taxableIncome;
+     
     const depreciation = (p.depreciationMonthly || 0);
     const investment = (p.initialInvestment || cogs + operatingExpenses);
     const monthlyNetCashFlow = revenue - cogs - platformFees - shipping - packaging - adSpend - returns - operatingExpenses - tax;
@@ -159,9 +163,16 @@ const FinancialEngine = (function() {
     const netProfitMargin = calculateNetProfitMargin(revenue, cogs, operatingExpenses, interest, tax, depreciation);
     const roi = calculateROI(netProfit, investment);
     const roas = calculateROAS(revenue * (p.adConversionRate || 0.02), adSpend);
-    const breakEvenUnits = calculateBreakEvenUnits(fixedCosts, unitPrice, variableCostPerUnit);
-    const breakEvenDays = calculateBreakEvenDays(breakEvenUnits, p.dailySalesRate || 3);
-    const paybackPeriod = calculatePaybackPeriod(investment, monthlyNetCashFlow);
+     
+    // Fixed: Check for Infinity before storing/using break-even values
+    let breakEvenUnits = calculateBreakEvenUnits(fixedCosts, unitPrice, variableCostPerUnit);
+    if (!isFinite(breakEvenUnits)) breakEvenUnits = 0;
+    let breakEvenDays = calculateBreakEvenDays(breakEvenUnits, p.dailySalesRate || 3);
+    if (!isFinite(breakEvenDays)) breakEvenDays = 0;
+     
+    let paybackPeriod = calculatePaybackPeriod(investment, monthlyNetCashFlow);
+    if (!isFinite(paybackPeriod)) paybackPeriod = 0;
+     
     const ccc = calculateCashConversionCycle(p.dio || 30, p.dso || 15, p.dpo || 30);
     const workingCapital = calculateWorkingCapital(cogs, p.accountsReceivable || 0, p.accountsPayable || 0);
     const unitEcon = calculateUnitEconomics(unitPrice, cogsPerUnit, platformFeePerUnit, shippingPerUnit, packagingPerUnit, adSpendPerUnit, returnCostPerUnit);

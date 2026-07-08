@@ -325,21 +325,59 @@ const SavedDetailModal = (function() {
       const updateBtn = document.getElementById('btn-update-inventory');
       if (updateBtn) {
         updateBtn.addEventListener('click', async () => {
-          const stock = parseInt(document.getElementById('op-stock').value) || 0;
-          const velocity = parseInt(document.getElementById('op-velocity').value) || 0;
-          p.currentStock = stock;
-          p.dailySalesVelocity = velocity;
-          p.daysRemaining = velocity > 0 ? Math.round(stock / velocity) : 0;
-          // Recalculate reorder point
-          if (typeof FinancialEngine !== 'undefined') {
-            p.reorderPoint = FinancialEngine.calculateReorderPoint(p.leadTime || 14, velocity, p.safetyStock || 15);
-            p.economicOrderQuantity = FinancialEngine.calculateEOQ((velocity * 365), 500, 10);
+          updateBtn.disabled = true;
+          const originalText = updateBtn.textContent;
+          updateBtn.textContent = 'Updating...';
+          try {
+            const stockEl = document.getElementById('op-stock');
+            const velocityEl = document.getElementById('op-velocity');
+            
+            if (!stockEl || !velocityEl) {
+              throw new Error('Form elements not found');
+            }
+            
+            const stock = parseInt(stockEl.value) || 0;
+            const velocity = parseInt(velocityEl.value) || 0;
+            p.currentStock = stock;
+            p.dailySalesVelocity = velocity;
+            p.daysRemaining = velocity > 0 ? Math.round(stock / velocity) : 0;
+            
+            // Recalculate reorder point
+            if (typeof FinancialEngine !== 'undefined') {
+              p.reorderPoint = FinancialEngine.calculateReorderPoint(p.leadTime || 14, velocity, p.safetyStock || 15);
+              p.economicOrderQuantity = FinancialEngine.calculateEOQ((velocity * 365), 500, 10);
+            }
+            
+            // Save
+            if (!window.db || !window.db.products) {
+              throw new Error('Database not available');
+            }
+            
+            const result = await window.db.products.put(p);
+            if (result === false) {
+              throw new Error('Save operation returned false');
+            }
+            
+            updateBtn.textContent = '✅ Updated!';
+            if (typeof Toast !== 'undefined') {
+              Toast.success('Inventory updated & recalculated');
+            }
+            showTab('operations');
+            setTimeout(() => {
+              updateBtn.textContent = originalText;
+              updateBtn.disabled = false;
+            }, 2000);
+          } catch (err) {
+            console.error('[UpdateInventory] Error:', err);
+            updateBtn.textContent = '❌ Error';
+            if (typeof Toast !== 'undefined') {
+              Toast.error('Failed to update inventory: ' + (err.message || 'Unknown error'));
+            }
+            setTimeout(() => {
+              updateBtn.textContent = originalText;
+              updateBtn.disabled = false;
+            }, 3000);
           }
-          // Save
-          if (window.db && window.db.products) {
-            await window.db.products.put(p);
-          }
-          showTab('operations');
         });
       }
     }, 50);
@@ -417,39 +455,87 @@ const SavedDetailModal = (function() {
         aiBtn.addEventListener('click', async () => {
           aiBtn.disabled = true;
           aiBtn.textContent = 'Generating...';
-          if (typeof callNvidiaAI === 'function') {
-            const prompt = `Generate an SEO-optimized Amazon listing for: ${p.name}, Category: ${p.category}, Price: Rs${p.sellingPrice}. Return JSON: {title, description, bullets:[], backendKeywords:[], searchTerms:[]}`;
-            try {
-              const res = await callNvidiaAI(prompt, 'You are an Amazon SEO expert.');
-              const data = JSON.parse(res);
-              document.getElementById('mk-title').value = data.title || '';
-              document.getElementById('mk-desc').value = data.description || '';
-              data.bullets?.forEach((b, i) => {
-                const el = document.getElementById(`mk-bullet-${i}`);
-                if (el) el.value = b;
-              });
-              document.getElementById('mk-keywords').value = (data.backendKeywords || []).join(', ');
-            } catch (e) {
-              console.warn('AI listing generation failed:', e);
+          try {
+            if (typeof callNvidiaAI !== 'function') {
+              throw new Error('AI function not available');
             }
+            const prompt = `Generate an SEO-optimized Amazon listing for: ${p.name}, Category: ${p.category}, Price: Rs${p.sellingPrice}. Return JSON: {title, description, bullets:[], backendKeywords:[], searchTerms:[]}`;
+            const res = await callNvidiaAI(prompt, 'You are an Amazon SEO expert.');
+            if (!res) {
+              throw new Error('No response from AI');
+            }
+            const data = JSON.parse(res);
+            document.getElementById('mk-title').value = data.title || '';
+            document.getElementById('mk-desc').value = data.description || '';
+            data.bullets?.forEach((b, i) => {
+              const el = document.getElementById(`mk-bullet-${i}`);
+              if (el) el.value = b;
+            });
+            document.getElementById('mk-keywords').value = (data.backendKeywords || []).join(', ');
+            if (typeof Toast !== 'undefined') {
+              Toast.success('Listing generated with AI');
+            }
+          } catch (e) {
+            console.warn('[AI Listing Generation] Error:', e.message);
+            if (typeof Toast !== 'undefined') {
+              Toast.error('AI generation failed: ' + (e.message || 'Unknown error'));
+            }
+          } finally {
+            aiBtn.disabled = false;
+            aiBtn.textContent = '🤖 Generate with AI';
           }
-          aiBtn.disabled = false;
-          aiBtn.textContent = '🤖 Generate with AI';
         });
       }
 
       const saveBtn = document.getElementById('btn-save-listing');
       if (saveBtn) {
         saveBtn.addEventListener('click', async () => {
-          p.listingTitle = document.getElementById('mk-title').value;
-          p.listingDescription = document.getElementById('mk-desc').value;
-          p.bulletPoints = [0,1,2,3,4].map(i => document.getElementById(`mk-bullet-${i}`)?.value || '').filter(Boolean);
-          p.backendKeywords = document.getElementById('mk-keywords').value.split(',').map(k => k.trim()).filter(Boolean);
-          if (window.db && window.db.products) {
-            await window.db.products.put(p);
+          saveBtn.disabled = true;
+          saveBtn.textContent = 'Saving...';
+          try {
+            // Get form values
+            const titleEl = document.getElementById('mk-title');
+            const descEl = document.getElementById('mk-desc');
+            const keywordsEl = document.getElementById('mk-keywords');
+            
+            if (!titleEl || !descEl || !keywordsEl) {
+              throw new Error('Form elements not found');
+            }
+            
+            p.listingTitle = titleEl.value;
+            p.listingDescription = descEl.value;
+            p.bulletPoints = [0,1,2,3,4].map(i => {
+              const el = document.getElementById(`mk-bullet-${i}`);
+              return el ? el.value : '';
+            }).filter(Boolean);
+            p.backendKeywords = keywordsEl.value.split(',').map(k => k.trim()).filter(Boolean);
+            
+            // Save to DB
+            if (!window.db || !window.db.products) {
+              throw new Error('Database not available');
+            }
+            
+            const result = await window.db.products.put(p);
+            if (result === false) {
+              throw new Error('Save operation returned false');
+            }
+            
+            saveBtn.textContent = '✅ Saved!';
+            setTimeout(() => {
+              saveBtn.textContent = '💾 Save Listing';
+              saveBtn.disabled = false;
+            }, 2000);
+          } catch (err) {
+            console.error('[SaveListing] Error:', err);
+            saveBtn.textContent = '❌ Error: ' + (err.message || 'Unknown error');
+            if (typeof Toast !== 'undefined') {
+              Toast.error('Failed to save listing: ' + (err.message || 'Unknown error'));
+            }
+            setTimeout(() => {
+              saveBtn.textContent = '💾 Save Listing';
+              saveBtn.disabled = false;
+            }, 3000);
           }
-          saveBtn.textContent = '✅ Saved!';
-          setTimeout(() => saveBtn.textContent = '💾 Save Listing', 2000);
         });
       }
 
@@ -468,27 +554,38 @@ const SavedDetailModal = (function() {
         adcopyBtn.addEventListener('click', async () => {
           adcopyBtn.disabled = true;
           adcopyBtn.textContent = 'Generating...';
-          if (typeof callNvidiaAI === 'function') {
+          try {
+            if (typeof callNvidiaAI !== 'function') {
+              throw new Error('AI function not available');
+            }
             const prompt = `Generate Google, Facebook, and Amazon PPC ad copies for: ${p.name}, Category: ${p.category}. Return JSON: {
               "google": {"headline": "...", "description": "..."},
               "facebook": {"primaryText": "...", "headline": "...", "description": "..."},
               "amazon": {"headline": "...", "description": "..."}
             }`;
-            try {
-              const res = await callNvidiaAI(prompt, 'You are an e-commerce copywriting expert.');
-              const data = JSON.parse(res);
-              p.adCopyGoogle = data.google || {};
-              p.adCopyFacebook = data.facebook || {};
-              p.adCopyAmazon = data.amazon || {};
-
-              const activeTab = container.querySelector('.ad-tab.active');
-              _updateAdCopyDisplay(p, activeTab ? activeTab.dataset.ad : 'google');
-            } catch (e) {
-              console.warn('AI adcopy generation failed:', e);
+            const res = await callNvidiaAI(prompt, 'You are an e-commerce copywriting expert.');
+            if (!res) {
+              throw new Error('No response from AI');
             }
+            const data = JSON.parse(res);
+            p.adCopyGoogle = data.google || {};
+            p.adCopyFacebook = data.facebook || {};
+            p.adCopyAmazon = data.amazon || {};
+
+            const activeTab = container.querySelector('.ad-tab.active');
+            _updateAdCopyDisplay(p, activeTab ? activeTab.dataset.ad : 'google');
+            if (typeof Toast !== 'undefined') {
+              Toast.success('Ad copies generated with AI');
+            }
+          } catch (e) {
+            console.warn('[AI AdCopy Generation] Error:', e.message);
+            if (typeof Toast !== 'undefined') {
+              Toast.error('Ad copy generation failed: ' + (e.message || 'Unknown error'));
+            }
+          } finally {
+            adcopyBtn.disabled = false;
+            adcopyBtn.textContent = 'Generate Ad Copy with AI';
           }
-          adcopyBtn.disabled = false;
-          adcopyBtn.textContent = 'Generate Ad Copy with AI';
         });
       }
     }, 50);
@@ -733,57 +830,98 @@ const SavedDetailModal = (function() {
 
   // ─── Bind Events ───
   function bindEvents() {
+    // Clean up old listeners before adding new ones (prevents accumulation)
+    const oldModal = document.getElementById('saved-detail-modal');
+    if (!oldModal) return;
+
     // Close
-    document.getElementById('modal-close-btn').addEventListener('click', close);
-    document.getElementById('saved-detail-modal').addEventListener('click', (e) => {
-      if (e.target.id === 'saved-detail-modal') close();
-    });
-    document.addEventListener('keydown', (e) => {
+    const closeBtn = document.getElementById('modal-close-btn');
+    if (closeBtn) {
+      closeBtn.onclick = null;
+      closeBtn.addEventListener('click', close);
+    }
+
+    const modalOverlay = document.getElementById('saved-detail-modal');
+    if (modalOverlay) {
+      modalOverlay.onclick = null;
+      modalOverlay.addEventListener('click', (e) => {
+        if (e.target.id === 'saved-detail-modal') close();
+      });
+    }
+
+    // Escape key handler - bind only once to document
+    const escapeHandler = (e) => {
       if (e.key === 'Escape') close();
-    });
+    };
+    document.removeEventListener('keydown', escapeHandler);
+    document.addEventListener('keydown', escapeHandler);
 
     // Tabs
-    document.querySelectorAll('.modal-tab').forEach(tab => {
+    const tabs = document.querySelectorAll('.modal-tab');
+    tabs.forEach(tab => {
+      tab.onclick = null;
       tab.addEventListener('click', () => showTab(tab.dataset.tab));
     });
 
     // Edit
-    document.getElementById('modal-edit-btn').addEventListener('click', async () => {
-      const newSp = prompt('Change Selling Price:', currentProduct.sp || currentProduct.sellingPrice);
-      if (newSp === null) return;
-      const newCp = prompt('Change Cost Price (Base):', currentProduct.cp || currentProduct.basePrice);
-      if (newCp === null) return;
-      const newMoq = prompt('Change MOQ:', currentProduct.moq);
-      if (newMoq === null) return;
-      const newNote = prompt('Change Note:', currentProduct.note);
-      if (newNote === null) return;
+    const editBtn = document.getElementById('modal-edit-btn');
+    if (editBtn) {
+      editBtn.onclick = null;
+      editBtn.addEventListener('click', async () => {
+        try {
+          const newSp = prompt('Change Selling Price:', currentProduct.sp || currentProduct.sellingPrice);
+          if (newSp === null) return;
+          const newCp = prompt('Change Cost Price (Base):', currentProduct.cp || currentProduct.basePrice);
+          if (newCp === null) return;
+          const newMoq = prompt('Change MOQ:', currentProduct.moq);
+          if (newMoq === null) return;
+          const newNote = prompt('Change Note:', currentProduct.note);
+          if (newNote === null) return;
 
-      const updates = {
-        sp: parseFloat(newSp) || 0,
-        cp: parseFloat(newCp) || 0,
-        moq: parseInt(newMoq) || 50,
-        note: newNote
-      };
+          const updates = {
+            sp: parseFloat(newSp) || 0,
+          cp: parseFloat(newCp) || 0,
+          moq: parseInt(newMoq) || 50,
+          note: newNote
+        };
 
-      if (window.db && window.db.saved) {
-        await window.db.saved.update(currentProduct.id, updates);
+        if (!window.db || !window.db.saved) {
+          throw new Error('Database not available');
+        }
+        const result = await window.db.saved.update(currentProduct.id, updates);
+        if (result === false) {
+          throw new Error('Update operation returned false');
+        }
         Toast.success('Product updated!');
         close();
         if (typeof renderSaved === 'function') {
           renderSaved();
         }
+      } catch (err) {
+        console.error('[Edit] Error:', err);
+        Toast.error('Failed to update product: ' + (err.message || 'Unknown error'));
       }
     });
 
     // Delete
     document.getElementById('modal-delete-btn').addEventListener('click', async () => {
       if (confirm('Delete this product? This cannot be undone.')) {
-        if (window.db && window.db.products) {
-          await window.db.products.delete(currentProduct.id);
-        }
-        close();
-        if (typeof renderSaved === 'function') {
-          renderSaved();
+        try {
+          if (!window.db || !window.db.products) {
+            throw new Error('Database not available');
+          }
+          const result = await window.db.products.delete(currentProduct.id);
+          if (result === false) {
+            throw new Error('Delete operation returned false');
+          }
+          Toast.success('Product deleted!');
+          close();
+          if (typeof renderSaved === 'function') {
+            renderSaved();
+          }
+        } catch (err) {
+          console.error('[Delete] Error:', err);
+          Toast.error('Failed to delete product: ' + (err.message || 'Unknown error'));
         }
       }
     });

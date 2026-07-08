@@ -120,7 +120,9 @@ function callAI(messages, opts = {}) {
       });
       const apiReq = https.request({
         hostname: cfg.host, port: 443, path: cfg.path, method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.apiKey}`, 'Content-Length': Buffer.byteLength(pd) },
+        headers: { 'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + ((typeof cfg !== 'undefined' && cfg.apiKey) ? cfg.apiKey : (typeof key !== 'undefined' && key) ? key : (typeof AI_CONFIG !== 'undefined' && AI_CONFIG.apiKey) ? AI_CONFIG.apiKey : (typeof AI_FALLBACK !== 'undefined' && AI_FALLBACK.apiKey) ? AI_FALLBACK.apiKey : ''),
+          'Content-Length': Buffer.byteLength(pd) },
       }, (r) => {
         let d = '';
         r.on('data', c => d += c);
@@ -391,8 +393,8 @@ function testAPIKey(apiKey, timeoutMs = 15000) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Length': Buffer.byteLength(postData),
+          'Authorization': 'Bearer ' + ((typeof cfg !== 'undefined' && cfg.apiKey) ? cfg.apiKey : (typeof key !== 'undefined' && key) ? key : (typeof AI_CONFIG !== 'undefined' && AI_CONFIG.apiKey) ? AI_CONFIG.apiKey : (typeof AI_FALLBACK !== 'undefined' && AI_FALLBACK.apiKey) ? AI_FALLBACK.apiKey : ''),
+          'Content-Length': Buffer.byteLength(postData),
       },
     };
 
@@ -528,8 +530,8 @@ IMPORTANT: platforms sorted by monthlySales descending. Include 5-8 platforms fo
           hostname: AI_CONFIG.host, port: 443, path: AI_CONFIG.path, method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${AI_CONFIG.apiKey}`,
-            'Content-Length': Buffer.byteLength(postData),
+          'Authorization': 'Bearer ' + ((typeof cfg !== 'undefined' && cfg.apiKey) ? cfg.apiKey : (typeof key !== 'undefined' && key) ? key : (typeof AI_CONFIG !== 'undefined' && AI_CONFIG.apiKey) ? AI_CONFIG.apiKey : (typeof AI_FALLBACK !== 'undefined' && AI_FALLBACK.apiKey) ? AI_FALLBACK.apiKey : ''),
+          'Content-Length': Buffer.byteLength(postData),
           },
         };
         let raw = '';
@@ -836,8 +838,8 @@ Return products sorted by winnerScore descending. Include ALL major platforms in
       hostname: AI_CONFIG.host, port: 443, path: AI_CONFIG.path, method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${AI_CONFIG.apiKey}`,
-        'Content-Length': Buffer.byteLength(postData),
+          'Authorization': 'Bearer ' + ((typeof cfg !== 'undefined' && cfg.apiKey) ? cfg.apiKey : (typeof key !== 'undefined' && key) ? key : (typeof AI_CONFIG !== 'undefined' && AI_CONFIG.apiKey) ? AI_CONFIG.apiKey : (typeof AI_FALLBACK !== 'undefined' && AI_FALLBACK.apiKey) ? AI_FALLBACK.apiKey : ''),
+          'Content-Length': Buffer.byteLength(postData),
       },
     }, (aiRes) => {
       let data = '';
@@ -1412,7 +1414,9 @@ RULES:
         const apiKey   = AI_CONFIG.apiKey;
         const opts = {
           hostname: AI_CONFIG.host, path: AI_CONFIG.path, method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`, 'Content-Length': Buffer.byteLength(postData) },
+          headers: { 'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + ((typeof cfg !== 'undefined' && cfg.apiKey) ? cfg.apiKey : (typeof key !== 'undefined' && key) ? key : (typeof AI_CONFIG !== 'undefined' && AI_CONFIG.apiKey) ? AI_CONFIG.apiKey : (typeof AI_FALLBACK !== 'undefined' && AI_FALLBACK.apiKey) ? AI_FALLBACK.apiKey : ''),
+          'Content-Length': Buffer.byteLength(postData) },
         };
         const req2 = https.request(opts, r => {
           let d = '';
@@ -1511,7 +1515,9 @@ RULES:
     const r = await new Promise((resolve, reject) => {
       const opts = {
         hostname: AI_CONFIG.host, path: AI_CONFIG.path, method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`, 'Content-Length': Buffer.byteLength(postData) },
+        headers: { 'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + ((typeof cfg !== 'undefined' && cfg.apiKey) ? cfg.apiKey : (typeof key !== 'undefined' && key) ? key : (typeof AI_CONFIG !== 'undefined' && AI_CONFIG.apiKey) ? AI_CONFIG.apiKey : (typeof AI_FALLBACK !== 'undefined' && AI_FALLBACK.apiKey) ? AI_FALLBACK.apiKey : ''),
+          'Content-Length': Buffer.byteLength(postData) },
       };
       const req2 = https.request(opts, resp => {
         let d = '';
@@ -1776,6 +1782,26 @@ async function handleDBSetSetting(req, res) {
   try {
     const body = await readBody(req);
     dbSetSetting(body.key, body.value);
+
+    // Hot-swap AI key if relevant so UI actions that save settings apply immediately
+    try {
+      if (body.key === 'nvidia_api_key') {
+        if (body.value && String(body.value).length > 0) {
+          AI_CONFIG.apiKey = String(body.value);
+          AI_CONFIG.enabled = true;
+          logger.info('Key', '✓ NVIDIA API key applied from settings endpoint');
+          console.log('[Settings] Applied NVIDIA API key from /api/db/settings');
+        } else {
+          AI_CONFIG.apiKey = '';
+          AI_CONFIG.enabled = false;
+          logger.info('Key', '✓ NVIDIA API key cleared via settings');
+          console.log('[Settings] Cleared NVIDIA API key from /api/db/settings');
+        }
+      }
+    } catch (e) {
+      logger.warn('Key', 'Failed to apply key from settings endpoint', e);
+    }
+
     jsonOk(res, { success: true });
   } catch(e) { jsonErr(res, e.message, 500); }
 }
@@ -1885,8 +1911,8 @@ Return ONLY valid JSON (no markdown, no explanation):
       hostname: AI_CONFIG.host, port: 443, path: AI_CONFIG.path, method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${AI_CONFIG.apiKey}`,
-        'Content-Length': Buffer.byteLength(postData),
+          'Authorization': 'Bearer ' + ((typeof cfg !== 'undefined' && cfg.apiKey) ? cfg.apiKey : (typeof key !== 'undefined' && key) ? key : (typeof AI_CONFIG !== 'undefined' && AI_CONFIG.apiKey) ? AI_CONFIG.apiKey : (typeof AI_FALLBACK !== 'undefined' && AI_FALLBACK.apiKey) ? AI_FALLBACK.apiKey : ''),
+          'Content-Length': Buffer.byteLength(postData),
       },
     };
     let data = '';
@@ -2288,7 +2314,9 @@ Return ONLY valid JSON with product details extracted from the page:
   return new Promise(resolve => {
     const pd = JSON.stringify({ model:AI_CONFIG.model, messages:[{role:'user',content:prompt}], max_tokens:1000, temperature:0.3, stream:false });
     const opts = { hostname:AI_CONFIG.host, port:443, path:AI_CONFIG.path, method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':`Bearer ${AI_CONFIG.apiKey}`,'Content-Length':Buffer.byteLength(pd)} };
+      headers:{'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + ((typeof cfg !== 'undefined' && cfg.apiKey) ? cfg.apiKey : (typeof key !== 'undefined' && key) ? key : (typeof AI_CONFIG !== 'undefined' && AI_CONFIG.apiKey) ? AI_CONFIG.apiKey : (typeof AI_FALLBACK !== 'undefined' && AI_FALLBACK.apiKey) ? AI_FALLBACK.apiKey : ''),
+          'Content-Length': Buffer.byteLength(pd)} };
     let d = '';
     const r = https.request(opts, resp => {
       resp.on('data', c => d += c);

@@ -4,25 +4,39 @@
    ============================================================ */
 
 async function renderDashboard() {
-  const stats = await getDashboardStats();
-  const country = AppState.selectedCountry;
-  const currency = AppState.displayCurrency;
-  const countryConf = (typeof COUNTRY_CONFIG !== 'undefined' && COUNTRY_CONFIG[country])
-    ? COUNTRY_CONFIG[country] : { currency: 'USD' };
+  try {
+    const stats = await getDashboardStats();
+    const country = AppState.selectedCountry;
+    const currency = AppState.displayCurrency;
+    const countryConf = (typeof COUNTRY_CONFIG !== 'undefined' && COUNTRY_CONFIG[country])
+      ? COUNTRY_CONFIG[country] : { currency: 'USD' };
 
-  // Update local stat cards
-  document.getElementById('dash-saved').textContent = stats.savedCount ?? 0;
-  document.getElementById('dash-suppliers').textContent = stats.supplierCount ?? 0;
-  document.getElementById('dash-avg-margin').textContent = (stats.avgMargin ?? 0) + '%';
+    // Update local stat cards
+    document.getElementById('dash-saved').textContent = stats.savedCount ?? 0;
+    document.getElementById('dash-suppliers').textContent = stats.supplierCount ?? 0;
+    document.getElementById('dash-avg-margin').textContent = (stats.avgMargin ?? 0) + '%';
 
-  const cap = CurrencyEngine.convert(stats.totalCapital ?? 0, countryConf.currency, currency);
-  document.getElementById('dash-capital').textContent = formatPrice(cap, currency);
+    const cap = CurrencyEngine.convert(stats.totalCapital ?? 0, countryConf.currency, currency);
+    document.getElementById('dash-capital').textContent = formatPrice(cap, currency);
 
-  // Fetch live market data
-  await renderMarketSnapshot();
+    // Fetch live market data
+    await renderMarketSnapshot();
 
-  // Feature 9: Inventory forecast
-  renderInventoryForecast();
+    // Feature 9: Inventory forecast
+    renderInventoryForecast();
+  } catch (err) {
+    console.error('[Dashboard] Render failed:', err);
+    const tbody = document.getElementById('market-snapshot-body');
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--danger);">
+        <div>❌ Failed to load dashboard</div>
+        <div class="muted" style="font-size:11px;margin-top:8px;">${err.message}</div>
+      </td></tr>`;
+    }
+    if (typeof Toast !== 'undefined') {
+      Toast.error('Dashboard error: ' + (err.message || 'Unknown error'));
+    }
+  }
 }
 
 async function renderMarketSnapshot() {

@@ -150,10 +150,18 @@ function runCalc() {
   const returnReserve = (ret / 100) * sp * 0.15 + (ret > 0 ? 5 : 0);
   const totalCost = productLanded + pack + platformFee + closing + ship + returnReserve + ad + misc;
   const profit = sp - totalCost;
-  const margin = sp > 0 ? (profit / sp) * 100 : 0;
+   
+  // Fixed: Check for division by zero and ensure valid numbers
+  let margin = 0;
+  if (sp > 0 && !isNaN(profit) && isFinite(profit)) {
+    margin = (profit / sp) * 100;
+    // Cap margin at reasonable values (no display of infinity/NaN)
+    margin = Math.min(Math.max(margin, -500), 500);
+  }
+   
   const capital = (productLanded + pack) * moq + (sp * moq * 0.3);
-  const be = profit > 0 ? Math.ceil(capital / profit) : Infinity;
-  const weeks = profit > 0 ? Math.ceil(be / 35) : Infinity;
+  const be = profit > 0 && isFinite(capital) && isFinite(profit) ? Math.ceil(capital / profit) : Infinity;
+  const weeks = be !== Infinity ? Math.ceil(be / 35) : Infinity;
 
   // Update results
   const profitEl = document.getElementById('res-profit');
@@ -170,7 +178,7 @@ function runCalc() {
 
   const marginEl = document.getElementById('res-margin');
   if (marginEl) {
-    marginEl.textContent = margin.toFixed(1) + '%';
+    marginEl.textContent = isFinite(margin) ? margin.toFixed(1) + '%' : '—';
     marginEl.className = 'value ' + (margin >= 30 ? 'positive-text' : margin >= 15 ? '' : 'danger-text');
   }
 

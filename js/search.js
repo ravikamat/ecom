@@ -341,67 +341,116 @@ async function renderSearchCard(product, platforms, currency) {
   return `<div class="card" style="margin-bottom:12px;"><h3 style="margin:0;">${product.name}</h3><div class="muted">${product.category||''} · ${getFlag(product.country)} ${product.country}</div>${rows.length ? `<div class="table-wrap mt-sm"><table><thead><tr><th>Platform</th><th>Sell</th><th>Profit</th><th>Margin</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>` : ''}</div>`;
 }
 
-/* ── Save handler ────────────────────────────────────────── */
-document.addEventListener('click', async function(e) {
-  const btn = e.target.closest('[data-action="save-search"]');
-  if (!btn) return;
-  const id = parseInt(btn.dataset.productId);
-  const product = await getLocalProductById(id);
-  if (!product) return;
-  const r = await addSaved({ name: product.name, country: product.country, category: product.category, sp: product.supplierPrice, currency: product.currency, margin: product.margin || 0, source: 'search' });
-  if (r.success) { Toast.success(`Saved "${product.name}"`); btn.textContent = '✓'; btn.disabled = true; }
-  else Toast.info(r.message);
-});
+/* ── Unified Search Handler — Fixed event listener accumulation ─────────────────────────────────────── */
+// IMPORTANT: Only bind this ONCE at page load, not on every render
+if (!window._searchHandlerBound) {
+  window._searchHandlerBound = true;
+  
+  document.addEventListener('click', async function(e) {
+   // Handle: Save from seeded products
+   const saveSeedBtn = e.target.closest('[data-action="save-search"]');
+   if (saveSeedBtn) {
+     try {
+       const id = parseInt(saveSeedBtn.dataset.productId);
+       const product = await getLocalProductById(id);
+       if (!product) {
+         Toast.error('Product not found');
+         return;
+       }
+       const r = await addSaved({
+         name: product.name,
+         country: product.country,
+         category: product.category,
+         sp: product.supplierPrice,
+         currency: product.currency,
+         margin: product.margin || 0,
+         source: 'search'
+       });
+       if (r.success) {
+         Toast.success(`Saved "${product.name}"`);
+         saveSeedBtn.textContent = '✓ Saved';
+         saveSeedBtn.disabled = true;
+       } else {
+         Toast.info(r.message || 'Save failed');
+       }
+     } catch (err) {
+       console.error('[Search Save] Error:', err);
+       Toast.error('Failed to save: ' + (err.message || 'Unknown error'));
+     }
+     return;
+   }
 
-/* ── Save live search result handler ───────────────────────── */
-document.addEventListener('click', async function(e) {
-  const btn = e.target.closest('[data-action="save-search-live"]');
-  if (!btn) return;
-  const key = btn.dataset.key;
-  const listing = window._searchListings?.[key];
-  if (!listing) return;
-  const r = await addSaved({
-    name:     listing.name || 'Product',
-    category: listing.category || '',
-    platform: listing.platform || '',
-    country:  AppState.selectedCountry || 'India',
-    sp:       listing.price || 0,
-    currency: listing.currency || AppState.displayCurrency,
-    margin:   listing.margin || 0,
-    source:   'search',
+   // Handle: Save from live search results
+   const saveLiveBtn = e.target.closest('[data-action="save-search-live"]');
+   if (saveLiveBtn) {
+     try {
+       const key = saveLiveBtn.dataset.key;
+       const listing = window._searchListings?.[key];
+       if (!listing) {
+         Toast.warning('Listing not found in cache');
+         return;
+       }
+       const r = await addSaved({
+         name:     listing.name || 'Product',
+         category: listing.category || '',
+         platform: listing.platform || '',
+         country:  AppState.selectedCountry || 'India',
+         sp:       listing.price || 0,
+         currency: listing.currency || AppState.displayCurrency,
+         margin:   listing.margin || 0,
+         source:   'search',
+       });
+       if (r?.success !== false) {
+         Toast.success(`Saved "${listing.name}"`);
+         saveLiveBtn.textContent = '✓ Saved';
+         saveLiveBtn.disabled = true;
+         saveLiveBtn.style.opacity = '0.6';
+       } else {
+         Toast.info(r.message || 'Already saved');
+       }
+     } catch (err) {
+       console.error('[Search Live Save] Error:', err);
+       Toast.error('Failed to save: ' + (err.message || 'Unknown error'));
+     }
+     return;
+   }
+
+   // Handle: Open product detail from search results
+   const detailBtn = e.target.closest('[data-action="open-search-detail"]');
+   if (detailBtn) {
+     try {
+       const key = detailBtn.dataset.key;
+       const listing = window._searchListings?.[key];
+       if (!listing) {
+         Toast.warning('Listing not found');
+         return;
+       }
+       // Build a product-like object compatible with openProductDetail()
+       const p = {
+         name:         listing.name || 'Product',
+         category:     listing.category || '',
+         platform:     listing.platform || '',
+         price:        listing.price || 0,
+         currency:     listing.currency || AppState.displayCurrency,
+         demand:       listing.demand || 60,
+         margin:       listing.margin || 0,
+         competition:  listing.competition || 'Medium',
+         platformCount: 1,
+         _winnerScore: computeWinnerScore({ demand: listing.demand || 60, margin: listing.margin || 0, competition: listing.competition || 'Medium', platformCount: 1 }),
+       };
+       if (typeof openProductDetail === 'function') {
+         openProductDetail(p);
+       } else {
+         Toast.error('Detail viewer not available');
+       }
+     } catch (err) {
+       console.error('[Search Detail] Error:', err);
+       Toast.error('Failed to open product detail');
+     }
+     return;
+   }
   });
-  if (r?.success !== false) {
-    Toast.success(`Saved "${listing.name}"`);
-    btn.textContent = '\u2713 Saved';
-    btn.disabled = true;
-    btn.style.opacity = '0.6';
-  } else {
-    Toast.info(r.message || 'Already saved');
-  }
-});
-
-/* ── Open product detail from search results ─────────────── */
-document.addEventListener('click', function(e) {
-  const el = e.target.closest('[data-action="open-search-detail"]');
-  if (!el) return;
-  const key = el.dataset.key;
-  const listing = window._searchListings?.[key];
-  if (!listing) return;
-  // Build a product-like object compatible with openProductDetail()
-  const p = {
-    name:         listing.name || 'Product',
-    category:     listing.category || '',
-    platform:     listing.platform || '',
-    price:        listing.price || 0,
-    currency:     listing.currency || AppState.displayCurrency,
-    demand:       listing.demand || 60,
-    margin:       listing.margin || 0,
-    competition:  listing.competition || 'Medium',
-    platformCount:1,
-    _winnerScore: computeWinnerScore({ demand: listing.demand || 60, margin: listing.margin || 0, competition: listing.competition || 'Medium', platformCount: 1 }),
-  };
-  if (typeof openProductDetail === 'function') openProductDetail(p);
-});
+}
 
 /* ── Image Search Upload Handlers ───────────────────────── */
 async function handleImageSearchFile(input) {

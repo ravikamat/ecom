@@ -141,7 +141,7 @@ Example: ["wholesale cotton t-shirts manufacturer Mumbai contact", "bulk t-shirt
       max_tokens: 800,
       reasoning_effort: 'medium'
     }, {
-      headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (key || '') },
       timeout: 15000
     });
     return res.data.choices[0].message.content;
@@ -662,3 +662,5 @@ class SupplierDiscoveryEngine {
 }
 
 export { SupplierDiscoveryEngine, ContactExtractor, KeywordGenerator };
+
+
