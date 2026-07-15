@@ -37,6 +37,7 @@ async function doSearch() {
 
   await runSearchPage(false);
   await addSearchHistory(query, AppState.selectedCountry);
+  window._isAISearch = false;
 }
 
 /* ── URL Reverse Track Extraction ─────────────────────────── */
@@ -194,7 +195,15 @@ async function runSearchPage(append = false) {
     window._searchLoading = true;
     try {
       let data = null;
-      if (window._searchPrefetched[window._searchPage]) {
+      if (window._isAISearch) {
+        const response = await fetch('/api/search/opportunities', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, country }),
+        });
+        if (!response.ok) throw new Error('AI Search failed');
+        data = await response.json();
+      } else if (window._searchPrefetched[window._searchPage]) {
         data = window._searchPrefetched[window._searchPage];
         delete window._searchPrefetched[window._searchPage];
       } else {
@@ -207,10 +216,103 @@ async function runSearchPage(append = false) {
         data = await response.json();
       }
 
-      window._searchHasMore = !!data.hasMore;
+      window._searchHasMore = window._isAISearch ? false : !!data.hasMore;
       const listings = data.items || [];
 
       if (!append) container.innerHTML = '';
+
+      if (window._isAISearch) {
+        window._lastSearchOpportunities = listings;
+        if (listings.length === 0) {
+          container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🤖</div>
+            <div class="empty-state-text">No target variants discovered by AI deep search. Try a different query.</div></div>`;
+          window._searchLoading = false;
+          return;
+        }
+
+        let html = `
+          <div class="card" style="margin-bottom:16px;">
+            <div class="flex-between" style="margin-bottom:12px;">
+              <div class="section-title" style="color:var(--accent);">🤖 AI Research Insights & Ranked Opportunities</div>
+              <div class="muted" style="font-size:12px;">Found ${listings.length} target variants across multiple marketplaces</div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Product Opportunity</th>
+                    <th>Winner Score</th>
+                    <th>Demand</th>
+                    <th>Margin</th>
+                    <th>Sourcing</th>
+                    <th>Platforms</th>
+                    <th>Avg Price</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+        `;
+
+        html += listings.map((p, i) => {
+          const score = p.hero_score || p.provisional_score || 50;
+          const demand = p.demand_velocity || 50;
+          const margin = p.margin_quality || 30;
+          const sp = p.avg_retail_price || p.price || 0;
+          const cp = p.avg_cost_price || p.supplier_cost || 0;
+
+          const isSaved = _isProductSaved(p.canonical_name || p.name);
+          const rowBg = isSaved ? 'background:rgba(34,197,94,0.06);' : (score >= 75 ? 'background:rgba(255,107,53,0.04);' : '');
+          const savedBadge = isSaved ? ' <span class="tag" style="font-size:9px;background:rgba(34,197,94,0.15);color:#22c55e;">✓ Saved</span>' : '';
+          
+          const specParts = [p.brand, p.size, p.variant, p.material].filter(Boolean).join(', ');
+          const specText = specParts ? `<div class="muted" style="font-size:10.5px;margin-top:2px;">Attributes: ${specParts}</div>` : '';
+
+          const supplierText = p.supplier_name 
+            ? `<div style="font-weight:600;font-size:11.5px;color:var(--text-primary);">${safeAttr(p.supplier_name)}</div>
+               <div class="muted" style="font-size:10px;">Landed: ${formatPrice(cp, currency)}</div>`
+            : `<div class="muted" style="font-size:11px;">No active supplier</div>`;
+
+          let sources = [];
+          try {
+            sources = typeof p.source_set === 'string' ? JSON.parse(p.source_set) : (p.source_set || [p.source || 'unknown']);
+          } catch(e) { sources = [p.source || 'unknown']; }
+          const sourcePills = sources.map(src => {
+            const label = src.charAt(0).toUpperCase() + src.slice(1);
+            return `<span class="tag" style="font-size:9px;padding:1px 4px;margin-right:2px;">${label}</span>`;
+          }).join('');
+
+          const saveBtn = isSaved
+            ? `<button class="btn btn-sm" disabled style="opacity:0.5;cursor:default;">✓ Saved</button>`
+            : `<button class="btn btn-sm" onclick="saveSearchOpportunity(${i})">Save</button>`;
+
+          return `
+            <tr style="${rowBg}">
+              <td>
+                <div style="font-weight:600;color:var(--text-primary);">${safeAttr(p.canonical_name || p.name)}</div>
+                ${specText}
+                ${savedBadge}
+              </td>
+              <td>${scoreBadge(score, p)}</td>
+              <td>${demandBar(demand)}</td>
+              <td class="positive-text mono">${margin}%</td>
+              <td>${supplierText}</td>
+              <td>${sourcePills}</td>
+              <td class="price mono">${formatPrice(sp, currency)}</td>
+              <td>${saveBtn}</td>
+            </tr>
+          `;
+        }).join('');
+
+        html += `
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+        container.innerHTML = html;
+        window._searchLoading = false;
+        return;
+      }
 
       if (listings.length > 0) {
         // Group by platform to keep clean results
@@ -274,11 +376,11 @@ async function runSearchPage(append = false) {
           });
         }
 
-        if (!append) {
-          initSearchObserver();
-        }
+        renderSearchPagination(query, country);
       } else if (!append) {
         container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">No results found.</div></div>`;
+        const existingPager = document.getElementById('search-pagination-bar');
+        if (existingPager) existingPager.remove();
       }
 
       // Prefetch next page in background
@@ -300,7 +402,10 @@ async function runSearchPage(append = false) {
 }
 
 /* ── Button handler ──────────────────────────────────────── */
-async function aiSmartSearch() { await doSearch(); }
+async function aiSmartSearch() {
+  window._isAISearch = true;
+  await doSearch();
+}
 
 /* ── Helpers ─────────────────────────────────────────────── */
 function fmtNum(n) {
@@ -526,3 +631,106 @@ function clearImageSearch() {
   if (previewContainer) previewContainer.style.display = 'none';
   if (searchInput) searchInput.value = '';
 }
+
+async function saveSearchOpportunity(idx) {
+  const p = window._lastSearchOpportunities[idx];
+  if (!p) return;
+  
+  const savedItem = {
+    name: p.canonical_name || p.name,
+    category: p.category || 'General',
+    platform: (typeof p.source_set === 'string' ? JSON.parse(p.source_set) : (p.source_set || ['Amazon']))[0] || 'Amazon',
+    country: AppState.selectedCountry || 'India',
+    sp: p.avg_retail_price || p.price || 0,
+    cp: p.avg_cost_price || p.supplier_cost || 0,
+    currency: p.currency || 'INR',
+    margin: p.margin_quality || 30,
+    demand: p.demand_velocity || 50,
+    winner_score: p.hero_score || p.provisional_score || 50,
+    moq: 50,
+    source: 'search_opportunity',
+    note: `Discovered via parallel AI deep search for: "${window._currentSearchQuery}"`
+  };
+
+  try {
+    const success = await addSaved(savedItem);
+    if (success) {
+      Toast.success(`Successfully saved "${savedItem.name}" to saved products list!`);
+      // Refresh current search results to update "Saved" status
+      window._isAISearch = true;
+      await runSearchPage(false);
+    }
+  } catch (err) {
+    Toast.error('Failed to save product: ' + err.message);
+  }
+}
+
+// Bind to window to allow inline onclick trigger in HTML
+window.aiSmartSearch = aiSmartSearch;
+window.saveSearchOpportunity = saveSearchOpportunity;
+
+function renderSearchPagination(query, country) {
+  if (window._isAISearch) {
+    const existingPager = document.getElementById('search-pagination-bar');
+    if (existingPager) existingPager.remove();
+    return;
+  }
+
+  const container = document.getElementById('search-results');
+  if (!container) return;
+
+  // Remove existing pager if any
+  const existingPager = document.getElementById('search-pagination-bar');
+  if (existingPager) existingPager.remove();
+
+  const pager = document.createElement('div');
+  pager.id = 'search-pagination-bar';
+  pager.className = 'flex-center mt-md';
+  pager.style.gap = '8px';
+  pager.style.padding = '20px 0';
+
+  const currentPage = window._searchPage || 1;
+
+  // Prev Button
+  const prevBtn = document.createElement('button');
+  prevBtn.className = `btn btn-sm ${currentPage <= 1 ? 'disabled' : ''}`;
+  prevBtn.textContent = '◀ Prev';
+  prevBtn.style.padding = '6px 12px';
+  prevBtn.onclick = () => {
+    if (currentPage > 1) {
+      window._searchPage = currentPage - 1;
+      runSearchPage(false);
+    }
+  };
+  pager.appendChild(prevBtn);
+
+  // Render pages 1 to 5
+  for (let p = 1; p <= 5; p++) {
+    const pageBtn = document.createElement('button');
+    pageBtn.className = `btn ${currentPage === p ? 'btn-primary' : 'btn-secondary'} btn-sm`;
+    pageBtn.textContent = p;
+    pageBtn.style.padding = '6px 12px';
+    pageBtn.onclick = () => {
+      window._searchPage = p;
+      runSearchPage(false);
+    };
+    pager.appendChild(pageBtn);
+  }
+
+  // Next Button
+  const nextBtn = document.createElement('button');
+  nextBtn.className = `btn btn-sm ${!window._searchHasMore ? 'disabled' : ''}`;
+  nextBtn.textContent = 'Next ▶';
+  nextBtn.style.padding = '6px 12px';
+  nextBtn.onclick = () => {
+    if (window._searchHasMore) {
+      window._searchPage = currentPage + 1;
+      runSearchPage(false);
+    }
+  };
+  pager.appendChild(nextBtn);
+
+  container.appendChild(pager);
+}
+
+window.renderSearchPagination = renderSearchPagination;

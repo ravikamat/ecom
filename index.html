@@ -31,6 +31,10 @@
       <span class="connection-badge" id="connection-status" title="Checking...">⏳ Checking</span>
       <select class="global-select" id="global-country" title="Select country"></select>
       <select class="global-select" id="global-currency" title="Display currency"></select>
+      <div class="server-control-container">
+        <button class="header-btn" id="server-status-btn" onclick="toggleServerDropdown(event)" title="Server Control" style="border:1px solid rgba(16,185,129,0.3);background:rgba(16,185,129,0.06);color:#10b981;font-weight:600;font-size:12px;padding:6px 10px;border-radius:6px;display:flex;align-items:center;gap:4px;vertical-align:middle;margin-right:4px;">🟢 Server Active</button>
+        <div class="server-dropdown" id="server-control-dropdown"></div>
+      </div>
       <button class="header-btn" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme">☀️</button>
       <button class="header-btn" onclick="openSettings()" title="Settings">⚙️</button>
       <a href="manual.html" class="header-btn" title="Help" style="text-decoration:none;">📖</a>
@@ -46,6 +50,7 @@
     <button class="nav-btn" data-page="calculator">🧮 Calculator</button>
     <button class="nav-btn" data-page="saved">💾 Saved List</button>
     <button class="nav-btn" data-page="agent" style="background:linear-gradient(135deg,rgba(99,102,241,0.2),rgba(139,92,246,0.2));border-color:rgba(99,102,241,0.3);">🤖 AI Agent</button>
+    <button class="nav-btn" data-page="discovery" style="background:linear-gradient(135deg,rgba(6,182,212,0.18),rgba(16,185,129,0.18));border-color:rgba(6,182,212,0.35);color:#06b6d4;font-weight:700;">🌊 Live Stream</button>
   </nav>
 
   <!-- ═══════════════════════════════════════════════════════ -->
@@ -130,8 +135,14 @@
   <!-- PAGE: Trending                                         -->
   <!-- ═══════════════════════════════════════════════════════ -->
   <section class="page" id="page-trending">
+    <!-- Stream Discoveries Top-100 mount point -->
+    <div id="discovery-top-section" class="card" style="margin-bottom:20px;padding:20px 24px;">
+      <div style="text-align:center;padding:20px;color:var(--text-secondary);">
+        <div class="spinner" style="margin:0 auto 8px;"></div>Loading stream discoveries…
+      </div>
+    </div>
     <div class="section-header">
-      <h2>🔥 Trending & Top Selling Products</h2>
+      <h2>🔥 Trending & Top Selling Products <span id="research-worker-status" class="tag" style="font-size:11px;background:rgba(99,102,241,0.15);color:var(--accent);display:none;margin-left:8px;vertical-align:middle;"></span></h2>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-ai" onclick="aiDiscoverTrending()">AI Discover</button>
         <button class="btn btn-primary" id="btn-deep-research" onclick="deepResearchTrending()">🔬 Deep Research</button>
@@ -169,6 +180,13 @@
       Loading more trending products...
     </div>
     <div id="ai-trending-container"></div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- PAGE: Live Discovery Stream                            -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <section class="page" id="page-discovery">
+    <div id="discovery-stream-container"></div>
   </section>
 
   <!-- ═══════════════════════════════════════════════════════ -->
@@ -739,6 +757,7 @@
 <script src="js/calculator.js"></script>
 <script src="js/chatbot.js"></script>
 <script src="js/saved.js"></script>
+<script src="js/discovery-stream.js"></script>
 <script src="js/app.js"></script>
 <!-- Containers -->
 <div id="modal-container"></div>

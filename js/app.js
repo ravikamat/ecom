@@ -33,6 +33,9 @@ function goTo(page) {
     case 'agent':
       if (typeof Chatbot !== 'undefined') Chatbot.init();
       break;
+    case 'discovery':
+      if (typeof initDiscoveryStream === 'function') initDiscoveryStream();
+      break;
   }
 
   // Update AI Coach context for the new page
@@ -179,7 +182,39 @@ async function openSettings() {
   } catch (e) {
     console.warn('[Settings] Failed to load keys:', e);
   }
+  // Check Ollama status
+  updateOllamaStatus();
 }
+
+async function updateOllamaStatus() {
+  const badge = document.getElementById('ollama-status-badge');
+  const detail = document.getElementById('ollama-status-detail');
+  try {
+    const res = await fetch('/api/ollama/status');
+    const data = await res.json();
+    if (badge) {
+      badge.style.background = data.available ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.12)';
+      badge.style.color = data.available ? 'var(--positive)' : 'var(--danger)';
+      badge.textContent = data.available ? '✅ Online' : '❌ Offline';
+    }
+    if (detail) {
+      const modeLabel = {
+        'ollama-promoted': '⚡ Ollama promoted to secondary (cloud is slow)',
+        'cloud-primary-ollama-fallback': '☁️ Cloud primary · Ollama on standby',
+        'cloud-only': '☁️ Cloud only (Ollama not running)',
+      }[data.mode] || data.mode;
+      const latency = data.cloudAvgLatencyMs ? `Cloud avg: ${data.cloudAvgLatencyMs}ms` : 'No cloud calls yet';
+      const modelList = data.models?.length ? data.models.map(m => m.name).join(', ') : 'No models detected';
+      detail.innerHTML = `
+        <div>Mode: <strong>${modeLabel}</strong></div>
+        <div style="margin-top:2px;">${latency} · Models: ${modelList}</div>`;
+    }
+  } catch {
+    if (badge) { badge.textContent = '⚠️ Unknown'; badge.style.color = 'var(--warning)'; }
+    if (detail) detail.textContent = 'Could not reach /api/ollama/status';
+  }
+}
+
 
 function _updateKeyStatus(prefix, value) {
   const el = document.getElementById(`${prefix}-key-status`);
@@ -333,8 +368,10 @@ async function initApp() {
     onCurrencyChange(this.value);
   });
 
-  // Check AI connectivity
+  // Check AI connectivity (initial)
   await checkConnectivity();
+  // Heartbeat: re-check AI every 60 seconds for auto-recovery
+  setInterval(checkConnectivity, 60000);
 
   // Boot dashboard
   goTo('dashboard');
@@ -363,29 +400,197 @@ async function initApp() {
   }, 2 * 60 * 60 * 1000);
 }
 
-/* ── Internet & AI Connectivity Check ────────────────────── */
+let _lastAiState = null; // Track previous state for smart toasts
 async function checkConnectivity() {
   const statusEl = document.getElementById('connection-status');
+  const btn = document.getElementById('server-status-btn');
   if (!statusEl) return;
 
   const aiOnline = await AIEngine.checkConnection();
+  const prevState = _lastAiState;
 
   if (aiOnline) {
+    _lastAiState = 'online';
     statusEl.textContent = '🟢 AI Online';
     statusEl.title = 'AI proxy server is running. Real-time search and AI features are available.';
     statusEl.className = 'connection-badge online';
+    if (btn) {
+      btn.textContent = '🟢 Server Active';
+      btn.style.color = '#10b981';
+      btn.style.borderColor = 'rgba(16,185,129,0.3)';
+      btn.style.background = 'rgba(16,185,129,0.06)';
+    }
+    // Recovery toast — only if we were previously offline
+    if (prevState && prevState !== 'online') {
+      Toast.success('✅ AI connection restored! All features are back online.');
+    }
   } else if (navigator.onLine) {
+    _lastAiState = 'ai-offline';
     statusEl.textContent = '🟡 AI Offline';
     statusEl.title = 'AI proxy not running. Start with: node server.js\nLocal database features still work.';
     statusEl.className = 'connection-badge partial';
-    Toast.warning('AI server not detected. Run "node server.js" in the eco folder for AI features.');
+    if (btn) {
+      btn.textContent = '🔴 Server Stopped';
+      btn.style.color = '#ef4444';
+      btn.style.borderColor = 'rgba(239,68,68,0.3)';
+      btn.style.background = 'rgba(239,68,68,0.06)';
+    }
+    // Only show toast on first detection, not every 60s
+    if (prevState === 'online') {
+      Toast.warning('⚠️ AI server went offline. Features using AI will fall back to local Qwen model.');
+    }
   } else {
+    _lastAiState = 'offline';
     statusEl.textContent = '🔴 Offline';
     statusEl.title = 'No internet connection. Using cached data only.';
     statusEl.className = 'connection-badge offline';
-    Toast.error('No internet connection. Working in offline mode with cached data.');
+    if (btn) {
+      btn.textContent = '🔴 Server Stopped';
+      btn.style.color = '#ef4444';
+      btn.style.borderColor = 'rgba(239,68,68,0.3)';
+      btn.style.background = 'rgba(239,68,68,0.06)';
+    }
+    if (prevState === 'online') {
+      Toast.error('🔴 Internet connection lost. Working in offline mode.');
+    }
   }
 }
+
+window._isServerSuspended = false;
+
+function toggleServerDropdown(event) {
+  event.stopPropagation();
+  const dropdown = document.getElementById('server-control-dropdown');
+  if (!dropdown) return;
+
+  const isShow = dropdown.classList.contains('show');
+  
+  // Close all other dropdowns
+  document.querySelectorAll('.server-dropdown').forEach(d => d.classList.remove('show'));
+
+  if (!isShow) {
+    if (window._isServerSuspended) {
+      dropdown.innerHTML = `
+        <button class="server-dropdown-item success" onclick="executeServerAction('start')">
+          <span>▶️</span> Start Server
+        </button>
+      `;
+    } else {
+      dropdown.innerHTML = `
+        <button class="server-dropdown-item" onclick="executeServerAction('restart')">
+          <span>🔄</span> Restart Server
+        </button>
+        <button class="server-dropdown-item danger" onclick="executeServerAction('stop')">
+          <span>🛑</span> Stop Server
+        </button>
+      `;
+    }
+    dropdown.classList.add('show');
+  }
+}
+
+// Close dropdown on clicking outside
+document.addEventListener('click', () => {
+  const dropdown = document.getElementById('server-control-dropdown');
+  if (dropdown) dropdown.classList.remove('show');
+});
+
+async function executeServerAction(action) {
+  const dropdown = document.getElementById('server-control-dropdown');
+  if (dropdown) dropdown.classList.remove('show');
+  const btn = document.getElementById('server-status-btn');
+
+  if (action === 'restart') {
+    if (!confirm('Restart background workers?\n\nThe server stays alive — this resets the research worker loop without interrupting the page.')) return;
+    if (btn) { btn.innerHTML = '🔄 Restarting…'; btn.style.color = '#f59e0b'; btn.style.borderColor = 'rgba(245,158,11,0.3)'; btn.style.background = 'rgba(245,158,11,0.06)'; btn.disabled = true; }
+    try {
+      const res = await fetch('/api/server/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restart' })
+      });
+      if (res.ok) {
+        window._isServerSuspended = false;
+        Toast.success('✅ Server workers restarted successfully!');
+      } else {
+        Toast.error('Failed to restart.');
+      }
+    } catch (e) {
+      Toast.error('Error: ' + e.message);
+    } finally {
+      if (btn) { btn.disabled = false; updateServerButtonUI(); }
+    }
+
+  } else if (action === 'stop') {
+    if (!confirm('Suspend the server?\n\nThis will pause all scrapers and background research workers. The page will still work.')) return;
+    if (btn) { btn.innerHTML = '⏳ Stopping…'; btn.disabled = true; }
+    try {
+      const res = await fetch('/api/server/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'stop' })
+      });
+      if (res.ok) {
+        window._isServerSuspended = true;
+        updateServerButtonUI();
+        Toast.warning('🛑 Server suspended. Background workers paused.');
+      } else {
+        Toast.error('Failed to stop server.');
+        updateServerButtonUI();
+      }
+    } catch (e) {
+      Toast.error('Error: ' + e.message);
+      updateServerButtonUI();
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+
+  } else if (action === 'start') {
+    if (btn) { btn.innerHTML = '⏳ Resuming…'; btn.disabled = true; }
+    try {
+      const res = await fetch('/api/server/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start' })
+      });
+      if (res.ok) {
+        window._isServerSuspended = false;
+        updateServerButtonUI();
+        Toast.success('✅ Server active. Background workers resumed.');
+      } else {
+        Toast.error('Failed to start server.');
+        updateServerButtonUI();
+      }
+    } catch (e) {
+      Toast.error('Error: ' + e.message);
+      updateServerButtonUI();
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+}
+
+
+function updateServerButtonUI() {
+  const btn = document.getElementById('server-status-btn');
+  if (!btn) return;
+  if (window._isServerSuspended) {
+    btn.innerHTML = '🔴 Server Stopped';
+    btn.style.color = '#ef4444';
+    btn.style.borderColor = 'rgba(239,68,68,0.3)';
+    btn.style.background = 'rgba(239,68,68,0.06)';
+  } else {
+    btn.innerHTML = '🟢 Server Active';
+    btn.style.color = '#10b981';
+    btn.style.borderColor = 'rgba(16,185,129,0.3)';
+    btn.style.background = 'rgba(16,185,129,0.06)';
+  }
+}
+
+// Bind to window so inline onclick attribute can access it
+window.toggleServerDropdown = toggleServerDropdown;
+window.executeServerAction = executeServerAction;
+window.updateServerButtonUI = updateServerButtonUI;
 
 // Re-check connectivity when online/offline status changes
 window.addEventListener('online',  () => { checkConnectivity(); Toast.success('🌐 Back online'); document.body.classList.remove('offline'); });

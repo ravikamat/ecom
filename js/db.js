@@ -288,8 +288,7 @@ async function autoRefreshSavedProducts() {
 
 async function refreshSavedProductDetail(id) {
   try {
-    const all  = await getSaved();
-    const item = all.find(i => i.id === parseInt(id));
+    const item = await getSavedById(parseInt(id));
     if (!item) return null;
 
     const res = await fetch('/api/product-detail', {

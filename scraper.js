@@ -51,7 +51,7 @@ export const COUNTRY_CURRENCIES = {
    Main Scraper — runs Crawlee CheerioCrawler
    ═══════════════════════════════════════════════════════════ */
 
-export async function scrapeProducts(query, country) {
+export async function scrapeProducts(query, country, page = 1) {
   const results = {
     amazon: [],
     google: [],
@@ -67,7 +67,7 @@ export async function scrapeProducts(query, country) {
   // Amazon search
   const amazonDomain = AMAZON_DOMAINS[country] || 'www.amazon.com';
   urls.push({
-    url: `https://${amazonDomain}/s?k=${encodeURIComponent(query)}`,
+    url: `https://${amazonDomain}/s?k=${encodeURIComponent(query)}&page=${page}`,
     label: 'amazon',
   });
 
@@ -77,15 +77,16 @@ export async function scrapeProducts(query, country) {
     Germany: 'www.google.de', France: 'www.google.fr', Japan: 'www.google.co.jp',
   };
   const gDomain = googleDomains[country] || 'www.google.com';
+  const gStart = (page - 1) * 20;
   urls.push({
-    url: `https://${gDomain}/search?q=${encodeURIComponent(query + ' buy price')}&tbm=shop&hl=en`,
+    url: `https://${gDomain}/search?q=${encodeURIComponent(query + ' buy price')}&tbm=shop&hl=en&start=${gStart}`,
     label: 'google',
   });
 
   // Flipkart (India)
   if (country === 'India') {
     urls.push({
-      url: `https://www.flipkart.com/search?q=${encodeURIComponent(query)}`,
+      url: `https://www.flipkart.com/search?q=${encodeURIComponent(query)}&page=${page}`,
       label: 'flipkart',
     });
   }
@@ -95,7 +96,7 @@ export async function scrapeProducts(query, country) {
     const ebayDomains = { USA: 'www.ebay.com', UK: 'www.ebay.co.uk', Australia: 'www.ebay.com.au', Canada: 'www.ebay.ca', Germany: 'www.ebay.de' };
     const eDomain = ebayDomains[country] || 'www.ebay.com';
     urls.push({
-      url: `https://${eDomain}/sch/i.html?_nkw=${encodeURIComponent(query)}`,
+      url: `https://${eDomain}/sch/i.html?_nkw=${encodeURIComponent(query)}&_pgn=${page}`,
       label: 'ebay',
     });
   }
