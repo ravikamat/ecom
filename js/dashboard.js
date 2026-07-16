@@ -39,13 +39,21 @@ async function renderDashboard() {
   }
 }
 
+let _cachedAIStatus = null;
+let _aiStatusTime   = 0;
+
 async function renderMarketSnapshot() {
   const country = AppState.selectedCountry;
   const currency = AppState.displayCurrency;
   const tbody = document.getElementById('market-snapshot-body');
   if (!tbody) return;
 
-  const aiOnline = await AIEngine.checkConnection();
+  // Cache AI status for 30 seconds to avoid hammering the connection check
+  if (_cachedAIStatus === null || Date.now() - _aiStatusTime > 30000) {
+    _cachedAIStatus = await AIEngine.checkConnection();
+    _aiStatusTime   = Date.now();
+  }
+  const aiOnline = _cachedAIStatus;
 
   if (aiOnline) {
     // Show loading state

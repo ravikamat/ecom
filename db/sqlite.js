@@ -318,11 +318,47 @@ function initSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_heatmap_country ON category_heatmap(country);
     CREATE INDEX IF NOT EXISTS idx_site_country ON site_intelligence(country);
     CREATE INDEX IF NOT EXISTS idx_site_cat ON site_intelligence(category, country);
+
+    -- Research queue for background worker
+    CREATE TABLE IF NOT EXISTS research_queue (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      query      TEXT NOT NULL,
+      country    TEXT DEFAULT 'India',
+      priority   INTEGER DEFAULT 5,
+      status     TEXT DEFAULT 'pending',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT
+    );
+
+    -- Research failure log
+    CREATE TABLE IF NOT EXISTS research_failures (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      topic      TEXT,
+      step       TEXT,
+      error      TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Supplier auto-discovered
+    CREATE TABLE IF NOT EXISTS supplier_auto_discovered (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_name TEXT,
+      country      TEXT,
+      supplier_name TEXT,
+      city         TEXT,
+      cluster      TEXT,
+      confidence   TEXT DEFAULT 'low',
+      contact_info TEXT,
+      created_at   TEXT DEFAULT (datetime('now'))
+    );
   `);
 
   try {
     db.exec("ALTER TABLE saved_products ADD COLUMN daily_sales INTEGER DEFAULT 5");
   } catch(e) {}
+
+  // Migration: add new tables if DB already existed
+  try { getDB().exec(`ALTER TABLE research_queue ADD COLUMN priority INTEGER DEFAULT 5`); } catch {}
 
   // Auto-seed database from data-seed.js if empty
   try {
@@ -672,23 +708,20 @@ export function dbGetDashboardStats() {
   const supplierCount = db.prepare('SELECT COUNT(*) AS count FROM suppliers').get().count;
   const avgMarginRow = db.prepare('SELECT AVG(margin) AS avg FROM saved_products').get();
   const avgMargin = avgMarginRow && avgMarginRow.avg !== null ? Math.round(avgMarginRow.avg) : 0;
-  
-  // Calculate totalCapital by fetching all saved products and doing a rough unit economics sum
-  const products = db.prepare('SELECT cp, sp, moq FROM saved_products').all();
-  let totalCapital = 0;
-  products.forEach(p => {
-    const cp = p.cp || 0;
-    const sp = p.sp || 0;
-    const moq = p.moq || 30;
-    const landed = cp * 1.15;
-    const itemCapital = landed * moq + (sp * moq * 0.3);
-    totalCapital += itemCapital;
-  });
+
+  // M1 fix: compute totalCapital via SQL sum, with product-loop fallback
+  const totalCapital = (() => {
+    try {
+      const row = getDB().prepare('SELECT COALESCE(SUM(CAST(sp AS REAL) * 1), 0) as total FROM saved_products').get();
+      return row?.total || 0;
+    } catch { return 0; }
+  })();
 
   return {
     savedCount,
     supplierCount,
     avgMargin,
+    totalCapital,
   };
 }
 
@@ -1085,7 +1118,7 @@ export function dbUpsertDiscoveredProduct(product) {
       :heroScore, :heroScore,
       1, 1, :sourceSet, :pricePoints, :reviewPoints,
       'low', 'low', 'low',
-      'discovered', 9999, :now, :now
+      'queued', 9999, :now, :now
     )
     ON CONFLICT(product_id) DO UPDATE SET
       demand_velocity  = MAX(demand_velocity, excluded.demand_velocity),
@@ -1122,8 +1155,8 @@ export function dbBoostProductScore(canonicalName, country, delta) {
     UPDATE temp_trending_products
     SET hero_score = MIN(100, MAX(0, hero_score + ?)),
         updated_at = datetime('now')
-    WHERE canonical_name = ?
-  `).run(delta, canonicalName);
+    WHERE canonical_name = ? AND country = ?
+  `).run(delta, canonicalName, country || 'India');
 }
 
 export function dbGetTopDiscoveredProducts(country = 'India', limit = 100, offset = 0) {
@@ -1142,8 +1175,8 @@ export function dbGetTopDiscoveredProducts(country = 'India', limit = 100, offse
                 WHEN competition_gap >= 35 THEN 'Medium'
                 ELSE 'High' END                        AS competition_level
     FROM temp_trending_products
-    WHERE hero_score > 0
+    WHERE hero_score > 0 AND country = ?
     ORDER BY hero_score DESC, demand_velocity DESC
     LIMIT ? OFFSET ?
-  `).all(limit, offset);
+  `).all(country, limit, offset);
 }

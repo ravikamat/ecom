@@ -401,13 +401,31 @@ class DiscoveryStreamUI {
       body: JSON.stringify({ sessionId: this.sessionId, productId: product.id, product, action: 'save' }),
     }).catch(() => {});
 
-    // Save to IndexedDB (reuse existing saveProduct if available)
-    if (typeof saveProduct === 'function') {
+    // Save to persistent DB — use addSaved (SQLite-backed) with correct field names
+    const savePayload = {
+      name:        product.name,
+      category:    product.category,
+      sp:          product.price       || product.sellingPrice || 0,   // M9 fix: price → sp
+      cp:          product.costPrice   || product.cost          || 0,  // M9 fix: costPrice → cp
+      margin:      product.margin,
+      demand:      product.demandScore,
+      competition: product.competition,
+      country:     product.location?.country || 'India',
+      platform:    product.platform,
+      currency:    product.currency,
+      source:      'discovery_stream',
+      note:        product.whyTrending || '',
+    };
+
+    if (typeof addSaved === 'function') {
+      addSaved(savePayload).catch(() => {});
+    } else if (typeof saveProduct === 'function') {
+      // Legacy fallback
       saveProduct({
         name:        product.name,
         category:    product.category,
-        price:       product.price,
-        costPrice:   product.costPrice,
+        sp:          product.price       || product.sellingPrice || 0,
+        cp:          product.costPrice   || product.cost          || 0,
         margin:      product.margin,
         demand:      product.demandScore,
         competition: product.competition,

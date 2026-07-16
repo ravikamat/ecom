@@ -165,6 +165,8 @@ async function runSearchPage(append = false) {
   const container = document.getElementById('search-results');
   if (!container) return;
 
+  let loader = null;
+  try {
   const country = AppState.selectedCountry;
   const currency = AppState.displayCurrency;
   const limit = parseInt(document.getElementById('search-limit')?.value || '20');
@@ -172,12 +174,14 @@ async function runSearchPage(append = false) {
   window._searchPerPage = limit;
 
   let trigger = document.getElementById('search-loading-trigger');
+  loader = trigger;
   if (!trigger) {
     trigger = document.createElement('div');
     trigger.id = 'search-loading-trigger';
     trigger.style = 'text-align:center;padding:16px;color:var(--text-secondary);font-size:13px;display:none;';
     trigger.innerHTML = `<div class="spinner" style="margin:0 auto 8px;"></div>Loading more products...`;
     container.parentNode.appendChild(trigger);
+    loader = trigger;
   }
 
   if (!append) {
@@ -233,7 +237,7 @@ async function runSearchPage(append = false) {
         let html = `
           <div class="card" style="margin-bottom:16px;">
             <div class="flex-between" style="margin-bottom:12px;">
-              <div class="section-title" style="color:var(--accent);">🤖 AI Research Insights & Ranked Opportunities</div>
+              <div class="section-title" style="color:var(--accent);">🤖 AI Research Insights &amp; Ranked Opportunities</div>
               <div class="muted" style="font-size:12px;">Found ${listings.length} target variants across multiple marketplaces</div>
             </div>
             <div class="table-wrap">
@@ -397,9 +401,23 @@ async function runSearchPage(append = false) {
     }
   } else {
     if (!append) await doLocalSearch(query, country, currency, container);
-    if (trigger) trigger.style.display = 'none';
+    if (loader) loader.style.display = 'none';
+  }
+
+  } catch (err) {
+    console.error('[runSearchPage] Fatal error:', err);
+    container.innerHTML = `
+      <div style="text-align:center;padding:40px;color:var(--text-secondary);">
+        <div style="font-size:32px;margin-bottom:12px;">⚠️</div>
+        <div style="font-weight:600;margin-bottom:8px;">Search failed</div>
+        <div style="font-size:13px;margin-bottom:16px;">${err.message}</div>
+        <button onclick="runSearch()" class="btn btn-sm">Retry</button>
+      </div>`;
+  } finally {
+    loader?.style && (loader.style.display = 'none');
   }
 }
+
 
 /* ── Button handler ──────────────────────────────────────── */
 async function aiSmartSearch() {

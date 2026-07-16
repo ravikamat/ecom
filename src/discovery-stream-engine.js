@@ -53,7 +53,7 @@ function nimPost(payload, apiKey, timeoutMs = 22000) {
 }
 
 // ─── Ollama (Qwen 3.6 local) HTTP POST helper ───────────────────────
-function ollamaPost(prompt, maxTokens = 1200, temperature = 0.65, timeoutMs = 90000) {
+function ollamaPost(prompt, maxTokens = 1200, temperature = 0.65, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({
       model: 'qwen3.6:latest',
@@ -446,16 +446,28 @@ class ProductMiner {
 
   _buildUrls(domain, query, location) {
     const q = encodeURIComponent(query);
-    const tld = location.country === 'India' ? 'in' :
-                location.country === 'UK' ? 'co.uk' :
-                location.country === 'Australia' ? 'com.au' :
-                location.country === 'Canada' ? 'ca' : 'com';
+    const country = location.country || 'India';
+    const tld = country === 'India' ? 'in' :
+                country === 'UK' ? 'co.uk' :
+                country === 'Australia' ? 'com.au' :
+                country === 'Canada' ? 'ca' : 'com';
+
+    const GOOGLE_DOMAINS = {
+      'India':     'https://www.google.co.in/search?tbm=shop&q=',
+      'USA':       'https://www.google.com/search?tbm=shop&q=',
+      'UK':        'https://www.google.co.uk/search?tbm=shop&q=',
+      'Germany':   'https://www.google.de/search?tbm=shop&q=',
+      'Australia': 'https://www.google.com.au/search?tbm=shop&q=',
+      'Canada':    'https://www.google.ca/search?tbm=shop&q=',
+      'UAE':       'https://www.google.ae/search?tbm=shop&q=',
+      'Singapore': 'https://www.google.com.sg/search?tbm=shop&q=',
+    };
 
     if (domain.includes('amazon')) return [`https://www.amazon.${tld}/s?k=${q}`];
     if (domain.includes('flipkart')) return [`https://www.flipkart.com/search?q=${q}`];
     if (domain.includes('meesho')) return [`https://www.meesho.com/search?q=${q}`];
     if (domain.includes('ebay')) return [`https://www.ebay.${tld}/sch/i.html?_nkw=${q}`];
-    return [`https://www.google.co.in/search?q=${q}+buy+online&tbm=shop`];
+    return [`${GOOGLE_DOMAINS[country] || GOOGLE_DOMAINS['USA']}${q}+buy+online`];
   }
 
   _parse($, domain) {

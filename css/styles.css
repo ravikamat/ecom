@@ -3473,3 +3473,229 @@ input[type="range"]::-moz-range-thumb {
   from { transform: translateY(20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
+/* ============================================================
+   ECO Command Center — Phase 6 UI Additions
+   ============================================================ */
+
+/* === Grid System === */
+.tab-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.tab-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+.tab-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+@media (max-width: 768px) {
+  .tab-grid-2, .tab-grid-3, .tab-grid-4 { grid-template-columns: 1fr; }
+}
+
+/* === Info Cards === */
+.info-card {
+  background: var(--bg-elevated, #1a1a2e);
+  border: 1px solid var(--border, #333);
+  border-radius: 12px;
+  padding: 1rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.info-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+.info-card .label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary, #888);
+  margin-bottom: 0.25rem;
+}
+.info-card .value { font-size: 1.25rem; font-weight: 700; color: var(--text-primary, #fff); }
+
+/* === Badges === */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  gap: 4px;
+}
+.badge.good    { background: rgba(34,197,94,0.2);   color: #22c55e; }
+.badge.bad     { background: rgba(239,68,68,0.2);   color: #ef4444; }
+.badge.neutral { background: rgba(156,163,175,0.2); color: #9ca3af; }
+.badge.warning { background: rgba(245,158,11,0.2);  color: #f59e0b; }
+.badge.info    { background: rgba(59,130,246,0.2);  color: #3b82f6; }
+
+/* === Communication Tabs === */
+.comm-tabs {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border, #333);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.comm-tabs .tab-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #888);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.875rem;
+}
+.comm-tabs .tab-btn.active  { background: var(--accent, #6366f1); color: white; }
+.comm-tabs .tab-btn:hover:not(.active) { background: rgba(255,255,255,0.05); color: var(--text-primary, #fff); }
+
+/* === Export Grid === */
+.export-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+.export-card {
+  background: var(--bg-elevated, #1a1a2e);
+  border: 1px solid var(--border, #333);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.export-card:hover { border-color: var(--accent, #6366f1); background: rgba(99,102,241,0.1); }
+.export-card .icon  { font-size: 2rem; margin-bottom: 0.5rem; }
+.export-card .title { font-weight: 600; margin-bottom: 0.25rem; color: var(--text-primary, #fff); }
+.export-card .desc  { font-size: 0.875rem; color: var(--text-secondary, #888); }
+
+/* === Modal Enhancements === */
+.modal-overlay { backdrop-filter: blur(8px); }
+.modal-container {
+  max-width: 900px;
+  width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  border-radius: 16px;
+  background: var(--bg-base, #0f0f1a);
+  border: 1px solid var(--border, #333);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border, #333);
+  position: sticky;
+  top: 0;
+  background: var(--bg-base, #0f0f1a);
+  z-index: 1;
+}
+.modal-body   { padding: 1.5rem; }
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border, #333);
+}
+.modal-product-title { font-size: 1.25rem; font-weight: 700; color: var(--text-primary, #fff); }
+.modal-lg { max-width: 1040px; }
+
+/* === Section Headers === */
+.section-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: var(--text-primary, #fff);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.section-title::before {
+  content: '';
+  display: block;
+  width: 4px;
+  height: 1.125rem;
+  background: var(--accent, #6366f1);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* === Data Tables === */
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.data-table th {
+  text-align: left;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border, #333);
+  color: var(--text-secondary, #888);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--text-primary, #fff);
+  vertical-align: middle;
+}
+.data-table tr:hover td { background: rgba(255,255,255,0.03); }
+
+/* === Chart Containers === */
+.chart-container {
+  background: var(--bg-elevated, #1a1a2e);
+  border-radius: 12px;
+  padding: 1rem;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary, #888);
+  border: 1px solid var(--border, #333);
+}
+
+/* === Timeline === */
+.timeline { position: relative; padding-left: 1.5rem; }
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 0.5rem;
+  top: 0; bottom: 0;
+  width: 2px;
+  background: var(--border, #333);
+}
+.timeline-item { position: relative; padding-bottom: 1.5rem; }
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: -1.25rem;
+  top: 0.25rem;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--accent, #6366f1);
+  border: 2px solid var(--bg-base, #0f0f1a);
+}
+.timeline-item .date    { font-size: 0.75rem; color: var(--text-secondary, #888); margin-bottom: 0.25rem; }
+.timeline-item .content { color: var(--text-primary, #fff); }
+
+/* === Responsive Helpers === */
+@media (max-width: 640px) {
+  .hide-mobile       { display: none !important; }
+  .full-width-mobile { width: 100% !important; }
+}
+
+/* === Loading States === */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-elevated,#1a1a2e) 25%, rgba(255,255,255,0.05) 50%, var(--bg-elevated,#1a1a2e) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  border-radius: 4px;
+}
+@keyframes skeleton-loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* === AI Status Badge === */
+.ai-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.ai-status-badge.online  { background: rgba(34,197,94,0.15); color: #22c55e; }
+.ai-status-badge.offline { background: rgba(239,68,68,0.15); color: #ef4444; }
+.ai-status-badge.unknown { background: rgba(156,163,175,0.15); color: #9ca3af; }
+.ai-status-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }

@@ -8,19 +8,35 @@ const AIEngine = {
   isLoading: false,
   isOnline: true,
 
-  /* ── Connectivity Check ────────────────────────────────── */
+  /* ── Connectivity Check (cached 30s to avoid spamming) ── */
+  _lastStatusCheck: 0,
+  _lastStatusResult: false,
+
   async checkConnection() {
+    const now = Date.now();
+    if (now - this._lastStatusCheck < 30000 && this._lastStatusCheck > 0) {
+      return this._lastStatusResult;
+    }
     try {
-      const res = await fetch('/api/ai-status', { method: 'GET', signal: AbortSignal.timeout(3000) });
+      // Use /api/ai/health (gateway 3-tier) with fallback to /api/ai-status
+      const res = await fetch('/api/ai/health', { method: 'GET', signal: AbortSignal.timeout(3000) })
+        .catch(() => fetch('/api/ai-status', { method: 'GET', signal: AbortSignal.timeout(3000) }));
       const data = await res.json();
-      this.isOnline = data.enabled === true;
-      return this.isOnline;
+      // Online if ANY of: GLM, MiniMax, Ollama is up
+      const online = data.glm === 'up' || data.minimax === 'up' || data.ollama === 'up'
+                  || data.ollama_local === true || data.enabled === true;
+      this.isOnline = online;
+      this._lastStatusCheck = now;
+      this._lastStatusResult = online;
+      return online;
     } catch (e) {
       console.warn('[AI] Connection check failed:', e.message);
       this.isOnline = false;
+      this._lastStatusResult = false;
       return false;
     }
   },
+
 
   /* ── Core Query ────────────────────────────────────────── */
   async query(prompt, options = {}) {

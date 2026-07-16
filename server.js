@@ -1,9 +1,16 @@
+// ── Node.js Version Guard ──────────────────────────────────
+const nodeMajor = parseInt(process.versions.node.split('.')[0]);
+if (nodeMajor < 22) {
+  console.error(`[FATAL] Node.js ${process.versions.node} detected. ECO requires Node.js 22+ for node:sqlite DatabaseSync.`);
+  process.exit(1);
+}
+
 /* ============================================================
-   Server v4 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Crawlee Live Scraping + AI Intelligence
+   Server v4 — Crawlee Live Scraping + AI Intelligence
    ============================================================
    Crawlee: Scrapes Amazon, Google Shopping, Flipkart, eBay
-   AI:      NVIDIA z-ai/glm-5.2 market intelligence
-   100% free ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â no API keys needed for scraping
+   AI:      GLM-5.2 → MiniMax-M3 → Ollama Qwen 3.6 (3-tier)
+   100% free — no API keys needed for scraping
    ============================================================
    Run:  node server.js
    Open: http://localhost:3000
@@ -17,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { scrapeProducts, COUNTRY_CURRENCIES, safeParseLLMResponse } from './scraper.js';
 
-// v2.5 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â SQLite persistent database
+// v2.5 — SQLite persistent database
 import {
   getDB, dbGetSaved, dbGetSavedById, dbInsertSaved, dbUpdateSaved,
   dbDeleteSaved, dbPinSaved, dbClearUnpinned, dbGetSetting, dbSetSetting,
@@ -36,7 +43,7 @@ import { SupplierDiscoveryEngine } from './src/supplier-discovery-engine.js';
 import { DiscoveryStreamEngine } from './src/discovery-stream-engine.js';
 import { buildQwenPrompt } from './src/qwen-prompts.js';
 
-// ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Import all the fix modules
+// ✅ NEW: Import all the fix modules
 import { Validators } from './src/validators.js';
 import { logger } from './src/logger.js';
 import { searchCache } from './src/cache.js';
@@ -44,6 +51,9 @@ import { dedup } from './src/dedup.js';
 import { compressResponseSync } from './src/compression.js';
 import { healthCheck } from './src/health.js';
 import { metrics } from './src/metrics.js';
+
+// ── AI Gateway (3-tier: GLM → MiniMax → Ollama) ──────────
+import { startHeartbeat, getHealthStatus as getGatewayHealth } from './src/intelligence-layer/ai-gateway.js';
 
 // Init DB on startup
 try {
@@ -90,14 +100,14 @@ setInterval(() => {
   }
 }, CONFIG.cache.ttlMs);
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Config ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// ──────────────── Config ────────────────────────────────
 let PRIMARY_API_KEY = process.env.NVIDIA_API_KEY || '';
 let FALLBACK_API_KEY = process.env.MINIMAX_API_KEY || '';
 
 let isServerSuspended = false;
 let workerIntervalId = null;
 
-// Discovery Stream Engine ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â initialized lazily with DB + keys after startup
+// Discovery Stream Engine — initialized lazily with DB + keys after startup
 let discoveryEngine = null;
 function getDiscoveryEngine() {
   if (!discoveryEngine) {
@@ -125,7 +135,7 @@ const AI_CONFIG = {
   enabled: false,
 };
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ MiniMax Fallback ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// ──── MiniMax Fallback ────────────────────────────────
 const AI_FALLBACK = {
   host: CONFIG.ai.host,
   path: CONFIG.ai.path,
@@ -134,8 +144,8 @@ const AI_FALLBACK = {
   top_p: CONFIG.ai.fallback.topP,
 };
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Universal AI caller with auto-fallback ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Ollama Local AI Config ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// ──── Universal AI caller with auto-fallback ────────────────────────────────
+// ──── Ollama Local AI Config ────────────────────────────────
 const OLLAMA_CONFIG = {
   host: '127.0.0.1',
   port: 11434,
@@ -191,13 +201,13 @@ async function checkOllamaAvailability() {
       req.end();
     });
   } catch { _ollamaAvailable = false; }
-  console.log(`[Ollama] ${_ollamaAvailable ? 'âœ… Available' : 'âš¡ Not running'} â€” model: ${OLLAMA_CONFIG.model}`);
+  console.log(`[Ollama] ${_ollamaAvailable ? '✅ Available' : '⚠️ Not running'} — model: ${OLLAMA_CONFIG.model}`);
 }
 checkOllamaAvailability();
 setInterval(checkOllamaAvailability, 300000);
 
 // Prompt optimizer: Qwen rewrites the user prompt before sending to GLM
-// Only used when Ollama is available â€” adds ~1-2s but improves GLM output quality
+// Only used when Ollama is available — adds ~1-2s but improves GLM output quality
 async function preOptimizePrompt(rawPrompt) {
   if (!_ollamaAvailable) return rawPrompt;
   try {
@@ -207,7 +217,7 @@ async function preOptimizePrompt(rawPrompt) {
   } catch { return rawPrompt; }
 }
 
-// Track cloud avg latency â€” if > 8s, auto-promote Ollama to secondary
+// Track cloud avg latency — if > 8s, auto-promote Ollama to secondary
 function _trackLatency(ms) {
   _cloudLatencyMs.push(ms);
   if (_cloudLatencyMs.length > 10) _cloudLatencyMs.shift();
@@ -223,8 +233,8 @@ function callAI(messages, opts = {}) {
     const tryOllamaFallback = async () => {
       if (!_ollamaAvailable) { resolve(null); return; }
       try {
-        console.log(`[AI] Both cloud AIs failed â€” trying Ollama Qwen 3.6 (local, task: ${opts.taskType || 'general'})...`);
-        // Build compact Qwen prompt â€” truncate to avoid token overflow
+        console.log(`[AI] Both cloud AIs failed — trying Ollama Qwen 3.6 (local, task: ${opts.taskType || 'general'})...`);
+        // Build compact Qwen prompt — truncate to avoid token overflow
         const smartPrompt = buildQwenPrompt(messages, opts.taskType || 'general');
         const compactPrompt = smartPrompt.length > 2000 ? smartPrompt.substring(0, 2000) + '\n\nReturn JSON only.' : smartPrompt;
         const text = await callOllama(compactPrompt, { temperature: opts.temperature || 0.7, maxTokens: Math.min(opts.max_tokens || 2048, 1500) });
@@ -237,9 +247,9 @@ function callAI(messages, opts = {}) {
       }
     };
 
-    // If cloud is consistently slow AND Ollama is up â€” try Ollama first as secondary
+    // If cloud is consistently slow AND Ollama is up — try Ollama first as secondary
     if (_cloudIsSlow() && _ollamaAvailable) {
-      console.log(`[AI] Cloud latency high â€” trying Ollama first (task: ${opts.taskType || 'general'})...`);
+      console.log(`[AI] Cloud latency high — trying Ollama first (task: ${opts.taskType || 'general'})...`);
       const smartPrompt = buildQwenPrompt(messages, opts.taskType || 'general');
       const compactPrompt = smartPrompt.length > 2000 ? smartPrompt.substring(0, 2000) + '\n\nReturn JSON only.' : smartPrompt;
       callOllama(
@@ -249,7 +259,7 @@ function callAI(messages, opts = {}) {
         if (!text || text.trim().length === 0) { cloudCall(tryOllamaFallback); return; }
         resolve({ choices: [{ message: { content: text } }], _source: 'ollama-fast-path' });
       }).catch(() => {
-        // Ollama failed too â€” fall through to cloud
+        // Ollama failed too — fall through to cloud
         cloudCall(tryOllamaFallback);
       });
       return;
@@ -284,7 +294,7 @@ function callAI(messages, opts = {}) {
             if (r.statusCode === 200) {
               if (!d || d.trim().length === 0) {
                 const name = isFallback ? 'MiniMax' : 'GLM';
-                console.warn(`[AI] ${name} returned empty body â€” trying next fallback`);
+                console.warn(`[AI] ${name} returned empty body — trying next fallback`);
                 if (!isFallback) tryCall(AI_FALLBACK, true); else finalFallback();
                 return;
               }
@@ -297,7 +307,7 @@ function callAI(messages, opts = {}) {
               console.warn(`[AI] Primary failed (${r.statusCode}), trying MiniMax fallback...`);
               tryCall(AI_FALLBACK, true);
             } else {
-              console.warn(`[AI] MiniMax failed (${r.statusCode}) â€” trying Ollama Qwen 3.6...`);
+              console.warn(`[AI] MiniMax failed (${r.statusCode}) — trying Ollama Qwen 3.6...`);
               finalFallback();
             }
           });
@@ -430,13 +440,13 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/search/opportunities' && req.method === 'POST') return handleSearchOpportunitiesRoute(req, res);
   if (pathname === '/api/research/refresh' && req.method === 'POST') return handleResearchRefreshRoute(req, res);
   
-  // âœ… NEW: Supplier Discovery Engine Routes
+  // ✅ NEW: Supplier Discovery Engine Routes
   if (pathname === '/api/suppliers/discover' && req.method === 'POST') return handleSupplierDiscover(req, res);
   if (pathname === '/api/suppliers/product' && req.method === 'GET') return handleSupplierProduct(req, res, reqUrl);
   if (pathname === '/api/suppliers/feedback' && req.method === 'POST') return handleSupplierFeedback(req, res);
   if (pathname === '/api/suppliers/auto-discover' && req.method === 'GET') return handleSupplierAutoDiscover(req, res);
   
-  // âœ… NEW: Health check + monitoring endpoints
+  // ✅ NEW: Health check + monitoring endpoints
   if (pathname === '/api/health' && req.method === 'GET') {
     healthCheck.check().then(health => {
       compressResponseSync(req, res, health);
@@ -480,13 +490,23 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // âœ… NEW: AI Status Check Endpoint
+  // ✅ NEW: AI Status Check Endpoint
   if (pathname === '/api/ai-status' && req.method === 'GET') {
     jsonOk(res, {
-      enabled: AI_CONFIG.enabled || !!AI_FALLBACK.apiKey,
+      enabled: AI_CONFIG.enabled || !!AI_FALLBACK.apiKey || _ollamaAvailable,
       primary: { model: AI_CONFIG.model, hasKey: !!AI_CONFIG.apiKey, enabled: AI_CONFIG.enabled },
       fallback: { model: AI_FALLBACK.model, hasKey: !!AI_FALLBACK.apiKey },
+      ollama: { available: !!_ollamaAvailable, model: OLLAMA_CONFIG.model },
     });
+    return;
+  }
+
+  // ✅ NEW: AI Gateway Health (3-tier status from heartbeat)
+  if (pathname === '/api/ai/health' && req.method === 'GET') {
+    const gwHealth = getGatewayHealth();
+    // Supplement with local ollama check
+    gwHealth.ollama_local = _ollamaAvailable;
+    jsonOk(res, gwHealth);
     return;
   }
 
@@ -521,7 +541,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // POST /api/ollama/supplier-msg â€” generate supplier contact email + WhatsApp msg via Qwen
+  // POST /api/ollama/supplier-msg — generate supplier contact email + WhatsApp msg via Qwen
   if (pathname === '/api/ollama/supplier-msg' && req.method === 'POST') {
     readBody(req).then(async (body) => {
       const { supplier, product, type = 'email', yourName = 'Buyer', yourBusiness = '' } = body;
@@ -560,7 +580,7 @@ Output ONLY the message, no explanations.`;
     return;
   }
 
-  // POST /api/refresh-saved â€” refresh a saved product's live data
+  // POST /api/refresh-saved — refresh a saved product's live data
   if (pathname === '/api/refresh-saved' && req.method === 'POST') {
     readBody(req).then(async (body) => {
       const { id, name, country = 'India' } = body;
@@ -592,7 +612,7 @@ Return JSON ONLY: { "demand": 0-100, "margin": 0-100, "competition": "Low|Medium
 
   // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-  // GET /api/discovery/stream  â€” SSE endless discovery loop
+  // GET /api/discovery/stream — SSE endless discovery loop
   if (pathname === '/api/discovery/stream' && req.method === 'GET') {
     const country    = reqUrl.searchParams.get('country') || 'India';
     const city       = reqUrl.searchParams.get('city') || '';
@@ -615,14 +635,14 @@ Return JSON ONLY: { "demand": 0-100, "margin": 0-100, "competition": "Low|Medium
     };
 
     req.on('close', () => { discoveryEngineProxy.stopStream(sessionId); });
-    // Run async â€” does not block
+    // Run async — does not block
     discoveryEngineProxy.startStream(sessionId, location, sseWrite)
       .catch(e => { console.error('[Discovery Route] Error:', e.message); })
       .finally(() => { try { res.end(); } catch {} });
     return;
   }
 
-  // POST /api/discovery/feedback  â€” save or skip feedback
+  // POST /api/discovery/feedback — save or skip feedback
   if (pathname === '/api/discovery/feedback' && req.method === 'POST') {
     readBody(req).then(body => {
       const { sessionId, productId, product, action } = body;
@@ -634,7 +654,7 @@ Return JSON ONLY: { "demand": 0-100, "margin": 0-100, "competition": "Low|Medium
     return;
   }
 
-  // DELETE /api/discovery/stream/:sessionId  â€” stop a session
+  // DELETE /api/discovery/stream/:sessionId — stop a session
   if (pathname.startsWith('/api/discovery/stream/') && req.method === 'DELETE') {
     const sid = pathname.split('/').pop();
     discoveryEngineProxy.stopStream(sid);
@@ -642,7 +662,7 @@ Return JSON ONLY: { "demand": 0-100, "margin": 0-100, "competition": "Low|Medium
     return;
   }
 
-  // GET /api/discovery/top â€” top-100 stream-discovered products, sorted by hero_score
+  // GET /api/discovery/top — top-100 stream-discovered products, sorted by hero_score
   if (pathname === '/api/discovery/top' && req.method === 'GET') {
     const country  = reqUrl.searchParams.get('country')  || 'India';
     const limit    = Math.min(200, parseInt(reqUrl.searchParams.get('limit')  || '100'));
@@ -671,7 +691,7 @@ Return JSON ONLY: { "demand": 0-100, "margin": 0-100, "competition": "Low|Medium
     return;
   }
 
-  // POST /api/discovery/boost â€” adjust hero_score from Trending UI save/skip
+  // POST /api/discovery/boost — adjust hero_score from Trending UI save/skip
   if (pathname === '/api/discovery/boost' && req.method === 'POST') {
     readBody(req).then(body => {
       const { name, country = 'India', action } = body;
@@ -700,9 +720,9 @@ Return JSON ONLY: { "demand": 0-100, "margin": 0-100, "competition": "Low|Medium
 });
 
 
-// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
-//  SET API KEY â€” Hot-swap key without server restart
-// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+// ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+//  SET API KEY — Hot-swap key without server restart
+// ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 function handleSetKey(req, res) {
   let body = '';
@@ -712,7 +732,7 @@ function handleSetKey(req, res) {
     try {
       const { apiKey, keyType = 'primary', testOnly } = JSON.parse(body);
 
-      // âœ… ADD VALIDATION
+      // ✅ ADD VALIDATION
       const validated = Validators.apiKey(apiKey);
 
       const isPrimary = keyType !== 'fallback';
@@ -729,7 +749,7 @@ function handleSetKey(req, res) {
         return;
       }
 
-      // Hot-swap the key at runtime â€” no restart needed
+      // Hot-swap the key at runtime — no restart needed
       targetConfig.apiKey = validated;
       if (isPrimary) {
         PRIMARY_API_KEY = validated;
@@ -755,7 +775,7 @@ function handleSetKey(req, res) {
   });
 }
 
-// âœ… IMPROVED: Better timeout handling + error logging
+// ✅ IMPROVED: Better timeout handling + error logging
 function testAPIKey(apiKey, timeoutMs = 15000) {
   return new Promise((resolve) => {
     let resolved = false;
@@ -774,7 +794,7 @@ function testAPIKey(apiKey, timeoutMs = 15000) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + ((typeof cfg !== 'undefined' && cfg.apiKey) ? cfg.apiKey : (typeof key !== 'undefined' && key) ? key : (typeof AI_CONFIG !== 'undefined' && AI_CONFIG.apiKey) ? AI_CONFIG.apiKey : (typeof AI_FALLBACK !== 'undefined' && AI_FALLBACK.apiKey) ? AI_FALLBACK.apiKey : ''),
+          'Authorization': 'Bearer ' + apiKey,
           'Content-Length': Buffer.byteLength(postData),
       },
     };
@@ -808,9 +828,9 @@ function testAPIKey(apiKey, timeoutMs = 15000) {
 }
 
 
-// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
-//  PRODUCT DETAIL â€” Deep AI analysis of a single product
-// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+// ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+//  PRODUCT DETAIL — Deep AI analysis of a single product
+// ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 function handleProductDetail(req, res) {
   let body = '';
@@ -872,7 +892,7 @@ function handleProductDetail(req, res) {
         "platform": "IndiaMART/JustDial/Alibaba/TradeIndia/Global Sources/Made-in-China/IndiaBizForSale/Shopclues Wholesale/Amazon Business/Flipkart Wholesale/Meesho Supplier/Udaan/Moglix",
         "type": "Manufacturer/Wholesaler/Distributor/Retailer/Importer",
         "location": "city, country",
-        "priceRange": "e.g. â‚¹150 - â‚¹300 per unit",
+        "priceRange": "e.g. ₹150 - ₹300 per unit",
         "currency": "${cur}",
         "minPrice": number in ${cur},
         "maxPrice": number in ${cur},
@@ -943,9 +963,9 @@ IMPORTANT: platforms sorted by monthlySales descending. Include 5-8 platforms fo
 }
 
 
-// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
-//  PRODUCT SEARCH â€” Crawlee Scraping + AI Intelligence
-// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+// ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+//  PRODUCT SEARCH — Crawlee Scraping + AI Intelligence
+// ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 function handleScrape(req, res) {
   let body = '';
@@ -972,7 +992,7 @@ function handleScrape(req, res) {
 
       const { query, country } = parsed;
       
-      // âœ… ADD VALIDATION
+      // ✅ ADD VALIDATION
       try {
         if (!query) throw new Error('Missing query');
         const validatedQuery = Validators.query(query);
@@ -981,7 +1001,7 @@ function handleScrape(req, res) {
         const countryName = validatedCountry === 'all' ? 'USA' : validatedCountry;
         const currency = COUNTRY_CURRENCIES[countryName] || 'USD';
 
-        // âœ… CHECK CACHE FIRST
+        // ✅ CHECK CACHE FIRST
         const cacheKey = `${countryName}:${validatedQuery}`;
         const cached = searchCache.get(validatedQuery, countryName);
         if (cached) {
@@ -995,7 +1015,7 @@ function handleScrape(req, res) {
 
         logger.info('Scrape', `Starting search for "${validatedQuery}" in ${countryName}`);
 
-        // âœ… USE DEDUPLICATION
+        // ✅ USE DEDUPLICATION
         const deupKey = `scrape:${validatedQuery}:${countryName}`;
         const [scrapeResult, aiResult] = await dedup.deduplicate(deupKey, async () => {
           return Promise.allSettled([
@@ -1018,7 +1038,7 @@ function handleScrape(req, res) {
           combined,
         };
 
-        // âœ… CACHE RESULTS
+        // ✅ CACHE RESULTS
         searchCache.set(validatedQuery, countryName, results);
 
         logger.info('Scrape', `Results: ${combined.liveListings.length} listings from ${combined.dataSources.join(', ')}`);
@@ -1120,13 +1140,13 @@ function buildCombinedResults(scraped, aiData, query, country, currency) {
 }
 
 
-// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
-//  AI INTELLIGENCE (3-tier: GLM-5.2 â€” MiniMax â€” Ollama)
-// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+// ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+//  AI INTELLIGENCE (3-tier: GLM-5.2 — MiniMax — Ollama)
+// ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 async function fetchAIProductData(query, country, currency) {
   if (!AI_CONFIG.enabled && !_ollamaAvailable) {
-    console.log('[AI] âš ï¸   No AI available - skipping market intelligence');
+    console.log('[AI] ⚠️    No AI available - skipping market intelligence');
     return null;
   }
 
@@ -1150,7 +1170,7 @@ IMPORTANT: 10 SPECIFIC products with FULL names. winnerScore=(demand*0.35)+(marg
     const content = aiResp?.choices?.[0]?.message?.content || '';
     console.log(`[AI] Response: ${content.length} chars (source: ${aiResp?._source || 'cloud'})`);
     const parsed = extractJSON(content);
-    console.log(`[AI] Parsed: ${parsed ? 'âœ…' : 'âš¡'}`);
+    console.log(`[AI] Parsed: ${parsed ? '✅' : '⚠️'}`);
     return parsed;
   } catch (e) {
     console.error('[AI] fetchAIProductData error:', e.message);
@@ -1182,9 +1202,9 @@ function extractJSON(text) {
 }
 
 
-// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+// ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 //  AI PROXY (for general frontend AI queries)
-// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+// ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 function handleAIProxy(req, res) {
   let body = '', sent = false;
@@ -1193,15 +1213,8 @@ function handleAIProxy(req, res) {
     try { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(typeof data === 'string' ? data : JSON.stringify(data)); } catch {}
   };
 
-  // âœ… GRACEFUL FALLBACK: If AI key not configured, return error with info
-  if (!AI_CONFIG.enabled) {
-    return respond(503, { 
-      error: { 
-        message: 'AI service not configured',
-        details: 'NVIDIA_API_KEY environment variable is not set. Set it to enable AI features. Platform works fine with web scraping only.'
-      } 
-    });
-  }
+  // FIX C3: Do NOT gate on cloud key — Ollama is always available as fallback
+  // No 503 guard here. callAI() handles 3-tier fallback automatically.
 
   req.on('data', c => { body += c; });
   req.on('end', async () => {
@@ -1210,16 +1223,18 @@ function handleAIProxy(req, res) {
 
     const SYSTEM_PREFIX = 'You are an expert e-commerce research assistant. Respond with valid JSON when asked. Use realistic 2025-2026 market data.\n\n';
     const msgs = (parsed.messages || []).map((m, i) => {
-      if (i === 0 && m.role === 'user') return { role: 'user', content: SYSTEM_PREFIX + m.content };
-      return m;
+      // Sanitize roles — only user/assistant allowed for cloud models
+      const role = (m.role === 'system' || m.role === 'tool') ? 'user' : m.role;
+      if (i === 0 && role === 'user') return { role: 'user', content: SYSTEM_PREFIX + m.content };
+      return { role, content: m.content };
     });
     if (msgs.length === 0) msgs.push({ role: 'user', content: SYSTEM_PREFIX });
 
-    console.log(`[AI Proxy] Forwarding via callAI() (${msgs.length} msg)...`);
+    console.log(`[AI Proxy] Forwarding via callAI() (${msgs.length} msg, cloud=${AI_CONFIG.enabled}, ollama=${!!_ollamaAvailable})...`);
     try {
-      const result = await callAI(msgs, { max_tokens: parsed.max_tokens || 4096, temperature: 1, top_p: 1 });
+      const result = await callAI(msgs, { max_tokens: parsed.max_tokens || 4096, temperature: 1, top_p: 1, taskType: 'proxy' });
       if (!result) return respond(503, { error: { message: 'All AI models unavailable. Try again later.' } });
-      console.log(`[AI Proxy] Done â€” 200`);
+      console.log(`[AI Proxy] Done — 200 (source: ${result._source || 'cloud'})`);
       respond(200, JSON.stringify(result));
     } catch(e) {
       respond(502, { error: { message: 'AI error: ' + e.message } });
@@ -1353,11 +1368,9 @@ const RATE_LIMIT_MAX = CONFIG.rateLimit.maxRequests;
 const ipRequests = new Map();
 
 function rateLimiter(req, res) {
-  const ip = req.socket.remoteAddress || 'unknown';
+  const ip  = req.socket.remoteAddress || 'unknown';
   const now = Date.now();
-  if (!ipRequests.has(ip)) {
-    ipRequests.set(ip, []);
-  }
+  if (!ipRequests.has(ip)) ipRequests.set(ip, []);
   const timestamps = ipRequests.get(ip).filter(ts => now - ts < RATE_LIMIT_WINDOW);
   if (timestamps.length >= RATE_LIMIT_MAX) {
     res.writeHead(429, { 'Content-Type': 'application/json' });
@@ -1365,7 +1378,9 @@ function rateLimiter(req, res) {
     return false;
   }
   timestamps.push(now);
-  ipRequests.set(ip, timestamps);
+  // FIX M7: Prune map to prevent memory leak
+  if (timestamps.length > 0) ipRequests.set(ip, timestamps);
+  else ipRequests.delete(ip);
   return true;
 }
 
@@ -2737,44 +2752,119 @@ async function handleDeepResearch(req, res) {
   } catch(e) { jsonErr(res, e.message, 500); }
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Supplier Discovery Engine Initialization & Handlers ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+function startResearchWorkerLoop() {
+  if (workerIntervalId) clearInterval(workerIntervalId);
+  console.log('[Worker] Research worker initialized ✅');
+  try { dbPruneTempTables(); } catch {}
+
+  // Backoff state — resets on success
+  let consecutiveFails = 0;
+  const BASE_INTERVAL  = 180000;   // 3 min
+  const MAX_INTERVAL   = 1800000;  // 30 min
+  let nextRunAt        = Date.now() + BASE_INTERVAL;
+
+  // Run discovery batch — with exponential backoff on failures
+  workerIntervalId = setInterval(async () => {
+    if (isServerSuspended) return;
+    if (Date.now() < nextRunAt) return; // respect backoff
+
+    try {
+      const status = dbGetWorkerStatus();
+      if (status.total < 1000) {
+        console.log(`[Worker] Pool size ${status.total} is below 1000, launching discovery...`);
+        const categories = ['fitness', 'electronics', 'kitchen', 'home', 'beauty', 'office', 'toys', 'pet'];
+        const randomCategory = categories[Math.floor(Math.random() * categories.length)];
+        const aiClient = new AIClient(AI_CONFIG);
+        const minimaxClient = FALLBACK_API_KEY ? new AIClient(AI_FALLBACK) : null;
+
+        runFullResearchCycle({
+          aiClient,
+          plannerSystemPrompt: PLANNER_SYSTEM_PROMPT,
+          criticSystemPrompt: CRITIC_SYSTEM_PROMPT,
+          minimaxClient,
+          db: {
+            insertRun: dbInsertRun,
+            insertCandidates: dbInsertCandidates,
+            upsertTempProducts: dbUpsertTempProducts,
+            finishRun: dbFinishRun
+          },
+          scrapeFns,
+          country: 'India',
+          category: randomCategory,
+          userQuery: null
+        }).then(result => {
+          console.log(`[Worker] Discovery cycle done. Total clustered: ${result.total_products}`);
+          dbPruneTempTables();
+          consecutiveFails = 0;
+          nextRunAt = Date.now() + BASE_INTERVAL;
+        }).catch(err => {
+          consecutiveFails++;
+          const backoffMs = Math.min(BASE_INTERVAL * Math.pow(2, consecutiveFails - 1), MAX_INTERVAL);
+          nextRunAt = Date.now() + backoffMs;
+          console.warn(`[Worker] Discovery cycle failed (attempt ${consecutiveFails}): ${err.message}. Backing off ${Math.round(backoffMs/60000)}min`);
+        });
+      } else {
+        // Run deep research updates on queued or stale items
+        const db = getDB();
+        const staleProducts = db.prepare(`SELECT * FROM temp_trending_products
+          WHERE status = 'queued' OR next_refresh_at < datetime('now')
+          ORDER BY hero_score DESC LIMIT 5`).all() || [];
+
+        if (staleProducts.length > 0) {
+          console.log(`[Worker] Deep researching ${staleProducts.length} stale/queued products...`);
+          deepResearchProducts({
+            products: staleProducts,
+            scrapeFns,
+            maxItems: staleProducts.length
+          }).then(enriched => {
+            if (enriched.length > 0) {
+              dbUpsertTempProducts(enriched);
+              console.log(`[Worker] Deep research cycle done.`);
+            }
+            consecutiveFails = 0;
+            nextRunAt = Date.now() + BASE_INTERVAL;
+          }).catch(err => {
+            consecutiveFails++;
+            const backoffMs = Math.min(BASE_INTERVAL * Math.pow(2, consecutiveFails - 1), MAX_INTERVAL);
+            nextRunAt = Date.now() + backoffMs;
+            console.warn(`[Worker] Deep research failed (attempt ${consecutiveFails}): ${err.message}. Backing off ${Math.round(backoffMs/60000)}min`);
+          });
+        }
+      }
+    } catch (e) {
+      consecutiveFails++;
+      const backoffMs = Math.min(BASE_INTERVAL * Math.pow(2, consecutiveFails - 1), MAX_INTERVAL);
+      nextRunAt = Date.now() + backoffMs;
+      console.error(`[Worker] Error (attempt ${consecutiveFails}): ${e.message}. Backing off ${Math.round(backoffMs/60000)}min`);
+    }
+  }, 30000); // Poll every 30s, only runs when nextRunAt elapsed
+}
+
+// ---------------- Supplier Discovery Engine Initialization & Handlers ----------------
 const supplierEngine = new SupplierDiscoveryEngine({
   db: getDB(),
   nimApiKey: PRIMARY_API_KEY,
   nimFallbackKey: FALLBACK_API_KEY
 });
-supplierEngine.init().then(() => console.log('ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Supplier Discovery Engine initialized')).catch(e => console.warn('ÃƒÂ¢Ã‚ÂÃ…â€™ Supplier Engine Init Error:', e.message));
+supplierEngine.init().then(() => console.log('[SupplierEngine] Initialized')).catch(e => console.warn('[SupplierEngine] Init Error:', e.message));
 
 async function handleSupplierDiscover(req, res) {
   try {
     const body = await readBody(req);
     const { productName, category, geo, useLearning } = body;
-    if (!productName || productName.length < 2) {
-      jsonErr(res, 400, 'Product name required (min 2 chars)');
-      return;
-    }
-    const result = await supplierEngine.findSuppliers({
-      productName, category: category || '', geo: geo || 'India', useLearning: useLearning !== false
-    });
+    if (!productName || productName.length < 2) { jsonErr(res, 400, 'Product name required (min 2 chars)'); return; }
+    const result = await supplierEngine.findSuppliers({ productName, category: category || '', geo: geo || 'India', useLearning: useLearning !== false });
     jsonOk(res, result);
-  } catch (e) {
-    console.error('Discovery error:', e);
-    jsonErr(res, 500, e.message);
-  }
+  } catch (e) { console.error('Discovery error:', e); jsonErr(res, 500, e.message); }
 }
 
 async function handleSupplierProduct(req, res, reqUrl) {
   try {
     const name = reqUrl.searchParams.get('name');
-    if (!name) {
-      jsonErr(res, 400, 'Product name required');
-      return;
-    }
+    if (!name) { jsonErr(res, 400, 'Product name required'); return; }
     const suppliers = await supplierEngine.getSuppliersForProduct(name);
     jsonOk(res, suppliers);
-  } catch (e) {
-    jsonErr(res, 500, e.message);
-  }
+  } catch (e) { jsonErr(res, 500, e.message); }
 }
 
 async function handleSupplierFeedback(req, res) {
@@ -2783,23 +2873,21 @@ async function handleSupplierFeedback(req, res) {
     const { supplierId, feedback } = body;
     const result = await supplierEngine.submitFeedback(supplierId, feedback);
     jsonOk(res, result);
-  } catch (e) {
-    jsonErr(res, 500, e.message);
-  }
+  } catch (e) { jsonErr(res, 500, e.message); }
 }
 
 async function handleSupplierAutoDiscover(req, res) {
   try {
     const db = getDB();
-    const trending = db.prepare ? 
-      db.prepare('SELECT name, category FROM trending_products WHERE created_at > datetime("now", "-7 days") LIMIT 10').all() :
-      await db.all('SELECT name, category FROM trending_products WHERE created_at > datetime("now", "-7 days") LIMIT 10');
+    const country = (new URL(req.url, 'http://localhost')).searchParams.get('country') || 'India';
+    const trending = db.prepare
+      ? db.prepare('SELECT name, category, country FROM temp_trending_products WHERE country = ? ORDER BY hero_score DESC LIMIT 50').all(country)
+      : [];
     const results = await supplierEngine.learning.autoDiscover(trending);
     jsonOk(res, { scheduled: results.length, products: results });
-  } catch (e) {
-    jsonErr(res, 500, e.message);
-  }
+  } catch (e) { jsonErr(res, 500, e.message); }
 }
+
 
 /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ E-COMMERCE HERO RESEARCH ORCHESTRATOR ROUTE HANDLERS ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
 
@@ -3213,74 +3301,9 @@ async function handleResearchRefreshRoute(req, res) {
   }
 }
 
-function startResearchWorkerLoop() {
-  if (workerIntervalId) clearInterval(workerIntervalId);
-  console.log('[Worker] Research worker initialized ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“');
-  try { dbPruneTempTables(); } catch {}
-
-  // Run discovery batch every 3 minutes if candidate pool < 1000 items
-  workerIntervalId = setInterval(async () => {
-    try {
-      const status = dbGetWorkerStatus();
-      if (status.total < 1000) {
-        console.log(`[Worker] Pool size ${status.total} is below 1000, launching discovery...`);
-        const categories = ['fitness', 'electronics', 'kitchen', 'home', 'beauty', 'office', 'toys', 'pet'];
-        const randomCategory = categories[Math.floor(Math.random() * categories.length)];
-        const aiClient = new AIClient(AI_CONFIG);
-        const minimaxClient = FALLBACK_API_KEY ? new AIClient(AI_FALLBACK) : null;
-
-        runFullResearchCycle({
-          aiClient,
-          plannerSystemPrompt: PLANNER_SYSTEM_PROMPT,
-          criticSystemPrompt: CRITIC_SYSTEM_PROMPT,
-          minimaxClient,
-          db: {
-            insertRun: dbInsertRun,
-            insertCandidates: dbInsertCandidates,
-            upsertTempProducts: dbUpsertTempProducts,
-            finishRun: dbFinishRun
-          },
-          scrapeFns,
-          country: 'India',
-          category: randomCategory,
-          userQuery: null
-        }).then(result => {
-          console.log(`[Worker] Discovery cycle done. Total clustered: ${result.total_products}`);
-          dbPruneTempTables();
-        }).catch(err => {
-          console.warn('[Worker] Discovery cycle failed:', err.message);
-        });
-      } else {
-        // Run deep research updates on queued or stale items
-        const db = getDB();
-        const staleProducts = db.prepare(`SELECT * FROM temp_trending_products 
-          WHERE status = 'queued' OR next_refresh_at < datetime('now') 
-          ORDER BY hero_score DESC LIMIT 5`).all() || [];
-
-        if (staleProducts.length > 0) {
-          console.log(`[Worker] Deep researching ${staleProducts.length} stale/queued products...`);
-          deepResearchProducts({
-            products: staleProducts,
-            scrapeFns,
-            maxItems: staleProducts.length
-          }).then(enriched => {
-            if (enriched.length > 0) {
-              dbUpsertTempProducts(enriched);
-              console.log(`[Worker] Deep research cycle done.`);
-            }
-          }).catch(err => {
-            console.warn('[Worker] Deep research cycle failed:', err.message);
-          });
-        }
-      }
-    } catch (e) {
-      console.error('[Worker] Error:', e.message);
-    }
-  }, 180000);
-}
-
 async function handleServerControl(req, res) {
   try {
+
     const body = await readBody(req);
     const { action } = body;
 
@@ -3322,6 +3345,15 @@ function listenWithRetry(port, retries = 5, delay = 1000) {
       startResearchWorkerLoop();
     } catch (e) {
       console.error('[Worker] Start failed:', e.message);
+    }
+    // ── AI Gateway heartbeat (60s interval, checks GLM/MiniMax/Ollama)
+    // gatewayConfig is imported from './src/intelligence-layer/ai-gateway.js' at top
+    // It exports CONFIG from './src/config.js' — we update it synchronously here
+    try {
+      startHeartbeat(60000);
+      console.log('[Server] AI Gateway heartbeat active (60s)');
+    } catch (e) {
+      console.warn('[Server] Gateway heartbeat start failed:', e.message);
     }
     console.log('');
     console.log('  ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬â€');
