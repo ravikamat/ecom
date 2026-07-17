@@ -1,3 +1,5 @@
+import { dbGetSetting } from '../db/sqlite.js';
+
 /**
  * ECO Command Center — Shared Configuration
  * Imported by both server.js and ai-gateway.js to avoid circular deps.
@@ -16,6 +18,6 @@ export const CONFIG = {
   rateLimit: { windowMs: 60000, maxRequests: 30 },
   cache: { ttlMs: 3600000 },
   // These are mutable — loaded from DB at startup
-  apiKey: process.env.NVIDIA_API_KEY || '',
-  fallbackApiKey: process.env.MINIMAX_API_KEY || '',
+  apiKey: process.env.NVIDIA_API_KEY || dbGetSetting('nvidia_api_key', ''),
+  fallbackApiKey: process.env.MINIMAX_API_KEY || dbGetSetting('minimax_api_key', ''),
 };

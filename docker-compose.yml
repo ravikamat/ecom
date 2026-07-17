@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  eco-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - REDIS_URL=redis://redis:6379
+      - DB_PATH=/data/eco.db
+      - EVENT_STORE_PATH=/data/eco_events.db
+      - PYTHON_BRIDGE_URL=http://python-bridge:5001
+      - AI_TIER1_URL=${AI_TIER1_URL}
+      - AI_TIER1_KEY=${AI_TIER1_KEY}
+      - AI_TIER2_URL=${AI_TIER2_URL}
+      - AI_TIER2_KEY=${AI_TIER2_KEY}
+      - AI_TIER3_URL=http://ollama:11434
+      - LOG_LEVEL=debug
+    volumes:
+      - ./data:/data
+      - ./src:/app/src
+      - ./js:/app/js
+      - ./css:/app/css
+    depends_on:
+      - redis
+      - python-bridge
+    networks:
+      - eco-network
+
+  python-bridge:
+    build:
+      context: ./scrapers
+      dockerfile: Dockerfile.python
+    ports:
+      - "5001:5001"
+    environment:
+      - PYTHON_BRIDGE_PORT=5001
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./scrapers:/app/scrapers
+    networks:
+      - eco-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - eco-network
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - eco-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - eco-network
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana-dashboards:/etc/grafana/provisioning/dashboards
+    networks:
+      - eco-network
+
+volumes:
+  redis-data:
+  ollama-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  eco-network:
+    driver: bridge

@@ -9,6 +9,7 @@ import http from 'node:http';
 import { EventEmitter } from 'node:events';
 import * as cheerio from 'cheerio';
 import { dbUpsertDiscoveredProduct, dbBoostProductScore } from '../db/sqlite.js';
+import { compressPayloadSmart } from './intelligence-layer/ai-gateway.js';
 
 const STREAM_CONFIG = {
   nimEndpoint: 'https://integrate.api.nvidia.com/v1/chat/completions',
@@ -52,12 +53,13 @@ function nimPost(payload, apiKey, timeoutMs = 22000) {
   });
 }
 
-// ─── Ollama (Qwen 3.6 local) HTTP POST helper ───────────────────────
+// ─── Ollama (Qwen local fast model) HTTP POST helper ───────────────────────
 function ollamaPost(prompt, maxTokens = 1200, temperature = 0.65, timeoutMs = 30000) {
+  const compressed = compressPayloadSmart(prompt, 6000);
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({
-      model: 'qwen3.6:latest',
-      prompt,
+      model: 'qwen3:1.7b',
+      prompt: compressed,
       stream: false,
       options: { temperature, num_predict: maxTokens },
     });

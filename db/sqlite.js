@@ -16,28 +16,21 @@ const DB_PATH   = path.join(__dirname, '..', 'eco.db');
 let _db = null;
 let _initPromise = null;
 
-// ✅ FIX: Thread-safe initialization with promise locking
+// Thread-safe synchronous database initialization
 export function getDB() {
   if (_db) return _db;
-  
-  // If already initializing, wait for it
-  if (_initPromise) return _initPromise.then(() => _db);
-  
-  _initPromise = new Promise((resolve, reject) => {
-    try {
-      _db = new DatabaseSync(DB_PATH);
-      _db.exec('PRAGMA journal_mode=WAL;');
-      _db.exec('PRAGMA foreign_keys=ON;');
-      _db.exec('PRAGMA busy_timeout=5000;'); // Wait 5s on lock
-      _db.exec('PRAGMA journal_size_limit=100000000;'); // 100MB journal
-      initSchema(_db);
-      resolve(_db);
-    } catch (err) {
-      reject(err);
-    }
-  });
-  
-  return _initPromise.then(() => _db);
+  try {
+    _db = new DatabaseSync(DB_PATH);
+    _db.exec('PRAGMA journal_mode=WAL;');
+    _db.exec('PRAGMA foreign_keys=ON;');
+    _db.exec('PRAGMA busy_timeout=5000;'); // Wait 5s on lock
+    _db.exec('PRAGMA journal_size_limit=100000000;'); // 100MB journal
+    initSchema(_db);
+    return _db;
+  } catch (err) {
+    console.error('Database initialization failed:', err.message);
+    throw err;
+  }
 }
 
 function initSchema(db) {
@@ -223,6 +216,7 @@ function initSchema(db) {
     CREATE TABLE IF NOT EXISTS temp_trending_products (
       product_id            TEXT PRIMARY KEY,
       canonical_name        TEXT NOT NULL,
+      country               TEXT DEFAULT 'India',
       brand                 TEXT,
       size                  TEXT,
       variant               TEXT,

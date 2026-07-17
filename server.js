@@ -16,12 +16,14 @@ if (nodeMajor < 22) {
    Open: http://localhost:3000
    ============================================================ */
 
-import http from 'node:http';
+import { createServer } from 'node:http';
 import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+import express from 'express';
+
 import { scrapeProducts, COUNTRY_CURRENCIES, safeParseLLMResponse } from './scraper.js';
 
 // v2.5 — SQLite persistent database
@@ -43,14 +45,27 @@ import { SupplierDiscoveryEngine } from './src/supplier-discovery-engine.js';
 import { DiscoveryStreamEngine } from './src/discovery-stream-engine.js';
 import { buildQwenPrompt } from './src/qwen-prompts.js';
 
+// Route imports for Express
+import productRoutes from './src/api/v1/routes/products.routes.js';
+import searchRoutes from './src/api/v1/routes/search.routes.js';
+import savedRoutes from './src/api/v1/routes/saved.routes.js';
+import researchRoutes from './src/api/v1/routes/research.routes.js';
+import discoveryRoutes from './src/api/v1/routes/discovery.routes.js';
+import supplierRoutes from './src/api/v1/routes/suppliers.routes.js';
+import chatbotRoutes from './src/api/v1/routes/chatbot.routes.js';
+import calculatorRoutes from './src/api/v1/routes/calculator.routes.js';
+import healthRoutes from './src/api/v1/routes/health.routes.js';
+import metricsRoutes from './src/api/v1/routes/metrics.routes.js';
+
 // ✅ NEW: Import all the fix modules
 import { Validators } from './src/validators.js';
-import { logger } from './src/logger.js';
+import { logger } from './src/infrastructure/logger.js';
 import { searchCache } from './src/cache.js';
 import { dedup } from './src/dedup.js';
 import { compressResponseSync } from './src/compression.js';
 import { healthCheck } from './src/health.js';
 import { metrics } from './src/metrics.js';
+import { CONFIG as sharedConfig } from './src/config.js';
 
 // ── AI Gateway (3-tier: GLM → MiniMax → Ollama) ──────────
 import { startHeartbeat, getHealthStatus as getGatewayHealth } from './src/intelligence-layer/ai-gateway.js';
@@ -149,7 +164,7 @@ const AI_FALLBACK = {
 const OLLAMA_CONFIG = {
   host: '127.0.0.1',
   port: 11434,
-  model: 'qwen3.6:latest',
+  model: 'qwen3:1.7b',
   timeout: 45000, // 45s max for local model
 };
 let _ollamaAvailable = null; // null=unknown, true/false
@@ -343,11 +358,13 @@ try {
     PRIMARY_API_KEY = primaryRow;
     AI_CONFIG.apiKey = PRIMARY_API_KEY;
     AI_CONFIG.enabled = true;
+    sharedConfig.apiKey = PRIMARY_API_KEY;
     console.log(`[Startup] Primary AI (GLM-5.2) enabled with key: ${PRIMARY_API_KEY.slice(0,10)}...`);
   }
   if (fallbackRow) {
     FALLBACK_API_KEY = fallbackRow;
     AI_FALLBACK.apiKey = FALLBACK_API_KEY;
+    sharedConfig.fallbackApiKey = FALLBACK_API_KEY;
     console.log(`[Startup] Fallback AI (MiniMax-M3) enabled with key: ${FALLBACK_API_KEY.slice(0,10)}...`);
   }
   if (!primaryRow && !fallbackRow) {
@@ -364,190 +381,190 @@ const MIME_TYPES = {
 };
 
 // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-const server = http.createServer(async (req, res) => {
-  const reqUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  const pathname = reqUrl.pathname;
+const app = express();
+app.use(express.json({ limit: '10mb' }));
 
+// Set CORS middleware
+app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin && (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1') || origin.startsWith('http://[::1]'))) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   } else {
     res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
   }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Key, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
 
-  // Check if server is suspended
-  if (isServerSuspended && pathname.startsWith('/api/') && pathname !== '/api/server/control' && pathname !== '/api/health') {
-    res.writeHead(503, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'Server suspended' }));
+// Check if server is suspended
+app.use((req, res, next) => {
+  if (isServerSuspended && req.path.startsWith('/api/') && req.path !== '/api/server/control' && req.path !== '/api/health') {
+    return res.status(503).json({ error: 'Server suspended' });
   }
+  next();
+});
 
-  // Simple memory-based rate limiter
-  if (['/api/scrape', '/api/ai', '/api/agent/chat', '/api/url-lookup', '/api/product-detail', '/api/trending/page', '/api/search/page'].includes(pathname)) {
-    if (!rateLimiter(req, res)) return;
-  }
+// Rate limiter for sensitive endpoints
+app.use(['/api/scrape', '/api/ai', '/api/agent/chat', '/api/url-lookup', '/api/product-detail', '/api/trending/page', '/api/search/page'], (req, res, next) => {
+  if (!rateLimiter(req, res)) return;
+  next();
+});
 
-  // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  if (pathname === '/api/scrape' && req.method === 'POST') return handleScrape(req, res);
-  if (pathname === '/api/ai' && req.method === 'POST') return handleAIProxy(req, res);
-  if (pathname === '/api/set-key' && req.method === 'POST') return handleSetKey(req, res);
-  if (pathname === '/api/product-detail' && req.method === 'POST') return handleProductDetail(req, res);
-  // v2.2 Research + Competitor Routes
-  if (pathname === '/api/research/multi-page' && req.method === 'POST') return handleMultiPageResearch(req, res);
-  if (pathname.startsWith('/api/research/trends/') && req.method === 'GET') return handleTrends(req, res, pathname);
-  if (pathname === '/api/competitor/price' && req.method === 'POST') return handleCompetitorPrice(req, res);
-  // v2.3 Agent + Scraper Routes
-  if (pathname === '/api/agent/chat' && req.method === 'POST') return handleAgentChat(req, res);
-  if (pathname === '/api/scraper/run' && req.method === 'POST') return handleScraperRun(req, res);
-  if (pathname === '/api/agent/tools' && req.method === 'GET') return handleAgentTools(req, res);
-  // v2.5 SQLite DB REST API
-  if (pathname === '/api/db/saved'            && req.method === 'GET')    return handleDBGetSaved(req, res);
-  if (pathname === '/api/db/saved'            && req.method === 'POST')   return handleDBInsertSaved(req, res);
-  if (pathname.startsWith('/api/db/saved/')   && req.method === 'GET')    return handleDBGetSavedById(req, res, pathname);
-  if (pathname.startsWith('/api/db/saved/')   && req.method === 'PUT')    return handleDBUpdateSaved(req, res, pathname);
-  if (pathname.startsWith('/api/db/saved/')   && req.method === 'DELETE') return handleDBDeleteSaved(req, res, pathname);
-  if (pathname.startsWith('/api/db/pin/')     && req.method === 'POST')   return handleDBPinSaved(req, res, pathname);
-  if (pathname === '/api/db/clear'            && req.method === 'POST')   return handleDBClear(req, res);
-  if (pathname === '/api/db/settings'         && req.method === 'GET')    return handleDBGetSettings(req, res);
-  if (pathname === '/api/db/settings'         && req.method === 'POST')   return handleDBSetSetting(req, res);
-  if (pathname === '/api/db/migrate'          && req.method === 'POST')   return handleDBMigrate(req, res);
-  if (pathname === '/api/db/dashboard-stats'  && req.method === 'GET')    return handleDBDashboardStats(req, res);
-  if (pathname === '/api/scrape/competitor'   && req.method === 'GET')    return handleScrapeCompetitor(req, res);
-  if (pathname === '/api/db/rates'            && req.method === 'GET')    return handleDBGetRates(req, res);
-  if (pathname === '/api/db/rates'            && req.method === 'POST')   return handleDBSetRates(req, res);
-  if (pathname.startsWith('/api/db/listings/') && req.method === 'GET')   return handleDBGetListings(req, res, pathname);
-  if (pathname === '/api/db/listings/generate' && req.method === 'POST')  return handleDBGenerateListing(req, res);
-  // v2.5 Seeded tables endpoints
-  if (pathname === '/api/db/products'         && req.method === 'GET')    return handleDBGetProducts(req, res);
-  if (pathname.startsWith('/api/db/products/') && req.method === 'GET')   return handleDBGetProductById(req, res, pathname);
-  if (pathname === '/api/db/suppliers'        && req.method === 'GET')    return handleDBGetSuppliers(req, res);
-  if (pathname.startsWith('/api/db/suppliers/') && req.method === 'GET')  return handleDBGetSupplierById(req, res, pathname);
-  if (pathname === '/api/db/platforms'        && req.method === 'GET')    return handleDBGetPlatforms(req, res);
-  // v2.5 Paginated trending/search + URL lookup
-  if (pathname === '/api/trending/page' && req.method === 'POST') return handleTrendingPage(req, res);
-  if (pathname === '/api/search/page'   && req.method === 'POST') return handleSearchPage(req, res);
-  if (pathname === '/api/search/upload' && req.method === 'POST') return handleImageSearchUpload(req, res);
-  if (pathname === '/api/url-lookup'          && req.method === 'POST')   return handleURLLookup(req, res);
-  if (pathname === '/api/trending/deep-research' && req.method === 'POST') return handleDeepResearch(req, res);
-  if (pathname === '/api/server/control' && req.method === 'POST') return handleServerControl(req, res);
-  
-  // E-commerce Hero Research Orchestrator Routes
-  if (pathname === '/api/research/run' && req.method === 'POST') return handleResearchRunRoute(req, res);
-  if (pathname === '/api/research/status' && req.method === 'GET') return handleResearchStatusRoute(req, res);
-  if (pathname === '/api/trending/feed' && req.method === 'GET') return handleTrendingFeedRoute(req, res, reqUrl);
-  if (pathname === '/api/search/opportunities' && req.method === 'POST') return handleSearchOpportunitiesRoute(req, res);
-  if (pathname === '/api/research/refresh' && req.method === 'POST') return handleResearchRefreshRoute(req, res);
-  
-  // ✅ NEW: Supplier Discovery Engine Routes
-  if (pathname === '/api/suppliers/discover' && req.method === 'POST') return handleSupplierDiscover(req, res);
-  if (pathname === '/api/suppliers/product' && req.method === 'GET') return handleSupplierProduct(req, res, reqUrl);
-  if (pathname === '/api/suppliers/feedback' && req.method === 'POST') return handleSupplierFeedback(req, res);
-  if (pathname === '/api/suppliers/auto-discover' && req.method === 'GET') return handleSupplierAutoDiscover(req, res);
-  
-  // ✅ NEW: Health check + monitoring endpoints
-  if (pathname === '/api/health' && req.method === 'GET') {
-    healthCheck.check().then(health => {
-      compressResponseSync(req, res, health);
-    });
-    return;
-  }
-  
-  if (pathname === '/api/logs' && req.method === 'GET') {
-    const limit = parseInt(reqUrl.searchParams.get('limit')) || 100;
-    const level = reqUrl.searchParams.get('level') || null;
-    const component = reqUrl.searchParams.get('component') || null;
-    const logs = logger.getLogs({ level, component, limit });
-    compressResponseSync(req, res, { logs, count: logs.length });
-    return;
-  }
-  
-  if (pathname === '/api/logs/stats' && req.method === 'GET') {
-    const stats = logger.getStats();
-    compressResponseSync(req, res, stats);
-    return;
-  }
-  
-  if (pathname === '/api/metrics' && req.method === 'GET') {
-    const snapshot = metrics.getSnapshot();
-    compressResponseSync(req, res, snapshot);
-    return;
-  }
-  
-  if (pathname === '/api/cache/stats' && req.method === 'GET') {
-    const stats = searchCache.getStats();
-    stats.capacity = searchCache.getCapacityPercent() + '%';
-    compressResponseSync(req, res, stats);
-    return;
-  }
-  
-  if (pathname === '/api/cache/clear' && req.method === 'POST') {
-    searchCache.clear();
-    dedup.clear();
-    logger.info('Cache', 'Cache cleared');
-    compressResponseSync(req, res, { success: true, message: 'Cache cleared' });
-    return;
-  }
+// Mount the new routes
+app.use('/api/v1/products', productRoutes);
+app.use('/api/v1/search', searchRoutes);
+app.use('/api/v1/saved', savedRoutes);
+app.use('/api/v1/research', researchRoutes);
+app.use('/api/v1/discovery', discoveryRoutes);
+app.use('/api/v1/suppliers', supplierRoutes);
+app.use('/api/v1/chatbot', chatbotRoutes);
+app.use('/api/v1/calc', calculatorRoutes);
+app.use('/api/v1/health', healthRoutes);
+app.use('/api/v1/metrics', metricsRoutes);
 
-  // ✅ NEW: AI Status Check Endpoint
-  if (pathname === '/api/ai-status' && req.method === 'GET') {
-    jsonOk(res, {
-      enabled: AI_CONFIG.enabled || !!AI_FALLBACK.apiKey || _ollamaAvailable,
-      primary: { model: AI_CONFIG.model, hasKey: !!AI_CONFIG.apiKey, enabled: AI_CONFIG.enabled },
-      fallback: { model: AI_FALLBACK.model, hasKey: !!AI_FALLBACK.apiKey },
-      ollama: { available: !!_ollamaAvailable, model: OLLAMA_CONFIG.model },
-    });
-    return;
-  }
+// Helper to support old readBody (since body is already parsed by express.json)
+function readBody(req) {
+  return Promise.resolve(req.body);
+}
 
-  // ✅ NEW: AI Gateway Health (3-tier status from heartbeat)
-  if (pathname === '/api/ai/health' && req.method === 'GET') {
-    const gwHealth = getGatewayHealth();
-    // Supplement with local ollama check
-    gwHealth.ollama_local = _ollamaAvailable;
-    jsonOk(res, gwHealth);
-    return;
-  }
+// Redirect/Forward helpers for old endpoints to keep compatibility
+app.get('/api/db/products', (req, res) => handleDBGetProducts(req, res));
+app.get('/api/db/products/:id', (req, res) => handleDBGetProductById(req, res, req.path));
+app.get('/api/db/suppliers', (req, res) => handleDBGetSuppliers(req, res));
+app.get('/api/db/suppliers/:id', (req, res) => handleDBGetSupplierById(req, res, req.path));
+app.get('/api/db/platforms', (req, res) => handleDBGetPlatforms(req, res));
 
-  // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  if (pathname === '/api/ollama/status' && req.method === 'GET') {
-    let models = [];
-    try {
-      models = await new Promise((resolve) => {
-        const r = http.request({ hostname: OLLAMA_CONFIG.host, port: OLLAMA_CONFIG.port,
-          path: '/api/tags', method: 'GET' }, (res2) => {
-          let d = ''; res2.on('data', c => d += c);
-          res2.on('end', () => { try { resolve(JSON.parse(d).models || []); } catch { resolve([]); } });
-        });
-        r.on('error', () => resolve([]));
-        r.setTimeout(3000, () => { r.destroy(); resolve([]); });
-        r.end();
+app.get('/api/db/settings', (req, res) => handleDBGetSettings(req, res));
+app.post('/api/db/settings', (req, res) => handleDBSetSetting(req, res));
+app.post('/api/db/migrate', (req, res) => handleDBMigrate(req, res));
+app.get('/api/db/dashboard-stats', (req, res) => handleDBDashboardStats(req, res));
+app.get('/api/scrape/competitor', (req, res) => handleScrapeCompetitor(req, res));
+app.get('/api/db/rates', (req, res) => handleDBGetRates(req, res));
+app.post('/api/db/rates', (req, res) => handleDBSetRates(req, res));
+app.get('/api/db/listings/:savedProductId', (req, res) => handleDBGetListings(req, res, req.path));
+app.post('/api/db/listings/generate', (req, res) => handleDBGenerateListing(req, res));
+
+app.get('/api/db/saved', (req, res) => handleDBGetSaved(req, res));
+app.post('/api/db/saved', (req, res) => handleDBInsertSaved(req, res));
+app.get('/api/db/saved/:id', (req, res) => handleDBGetSavedById(req, res, req.path));
+app.put('/api/db/saved/:id', (req, res) => handleDBUpdateSaved(req, res, req.path));
+app.delete('/api/db/saved/:id', (req, res) => handleDBDeleteSaved(req, res, req.path));
+app.post('/api/db/pin/:id', (req, res) => handleDBPinSaved(req, res, req.path));
+app.post('/api/db/clear', (req, res) => handleDBClear(req, res));
+
+app.post('/api/scrape', (req, res) => handleScrape(req, res));
+app.post('/api/ai', (req, res) => handleAIProxy(req, res));
+app.post('/api/set-key', (req, res) => handleSetKey(req, res));
+app.post('/api/product-detail', (req, res) => handleProductDetail(req, res));
+app.post('/api/research/multi-page', (req, res) => handleMultiPageResearch(req, res));
+app.get('/api/research/trends/:product', (req, res) => handleTrends(req, res, req.path));
+app.post('/api/competitor/price', (req, res) => handleCompetitorPrice(req, res));
+app.post('/api/agent/chat', (req, res) => handleAgentChat(req, res));
+app.post('/api/scraper/run', (req, res) => handleScraperRun(req, res));
+app.get('/api/agent/tools', (req, res) => handleAgentTools(req, res));
+
+app.post('/api/trending/page', (req, res) => handleTrendingPage(req, res));
+app.post('/api/search/page', (req, res) => handleSearchPage(req, res));
+app.post('/api/search/upload', (req, res) => handleImageSearchUpload(req, res));
+app.post('/api/url-lookup', (req, res) => handleURLLookup(req, res));
+app.post('/api/trending/deep-research', (req, res) => handleDeepResearch(req, res));
+app.post('/api/server/control', (req, res) => handleServerControl(req, res));
+
+app.post('/api/research/run', (req, res) => handleResearchRunRoute(req, res));
+app.get('/api/research/status', (req, res) => handleResearchStatusRoute(req, res));
+app.get('/api/trending/feed', (req, res) => handleTrendingFeedRoute(req, res, new URL(req.url, 'http://localhost')));
+app.post('/api/search/opportunities', (req, res) => handleSearchOpportunitiesRoute(req, res));
+app.post('/api/research/refresh', (req, res) => handleResearchRefreshRoute(req, res));
+
+app.post('/api/suppliers/discover', (req, res) => handleSupplierDiscover(req, res));
+app.get('/api/suppliers/product', (req, res) => handleSupplierProduct(req, res, new URL(req.url, 'http://localhost')));
+app.post('/api/suppliers/feedback', (req, res) => handleSupplierFeedback(req, res));
+app.get('/api/suppliers/auto-discover', (req, res) => handleSupplierAutoDiscover(req, res));
+
+app.get('/api/health', (req, res) => healthCheck.check().then(h => res.json(h)));
+app.get('/api/logs', (req, res) => {
+  const limit = parseInt(req.query.limit) || 100;
+  const level = req.query.level || null;
+  const component = req.query.component || null;
+  const logs = logger.getLogs({ level, component, limit });
+  res.json({ logs, count: logs.length });
+});
+app.get('/api/logs/stats', (req, res) => res.json(logger.getStats()));
+app.get('/api/metrics', (req, res) => res.json(metrics.getSnapshot()));
+app.get('/api/cache/stats', (req, res) => {
+  const stats = searchCache.getStats();
+  stats.capacity = searchCache.getCapacityPercent() + '%';
+  res.json(stats);
+});
+app.post('/api/cache/clear', (req, res) => {
+  searchCache.clear();
+  dedup.clear();
+  logger.info('Cache', 'Cache cleared');
+  res.json({ success: true, message: 'Cache cleared' });
+});
+app.get('/api/ai-status', (req, res) => {
+  res.json({
+    enabled: AI_CONFIG.enabled || !!AI_FALLBACK.apiKey || _ollamaAvailable,
+    primary: { model: AI_CONFIG.model, hasKey: !!AI_CONFIG.apiKey, enabled: AI_CONFIG.enabled },
+    fallback: { model: AI_FALLBACK.model, hasKey: !!AI_FALLBACK.apiKey },
+    ollama: { available: !!_ollamaAvailable, model: OLLAMA_CONFIG.model },
+  });
+});
+app.get('/api/ai/health', (req, res) => {
+  const gwHealth = getGatewayHealth();
+  gwHealth.ollama_local = _ollamaAvailable;
+  res.json(gwHealth);
+});
+
+app.get('/api/ollama/status', (req, res) => handleOllamaStatus(req, res));
+app.post('/api/ollama/supplier-msg', (req, res) => handleOllamaSupplierMsg(req, res));
+app.post('/api/refresh-saved', (req, res) => handleRefreshSaved(req, res));
+
+app.get('/api/discovery/stream', (req, res) => handleDiscoveryStream(req, res));
+app.post('/api/discovery/feedback', (req, res) => handleDiscoveryFeedback(req, res));
+app.delete('/api/discovery/stream/:sessionId', (req, res) => handleDiscoveryStopStream(req, res));
+app.get('/api/discovery/top', (req, res) => handleDiscoveryTop(req, res));
+app.post('/api/discovery/boost', (req, res) => handleDiscoveryBoost(req, res));
+
+// Wrap custom/complex handler routes that had custom parameter extraction or streaming behavior
+async function handleOllamaStatus(req, res) {
+  let models = [];
+  try {
+    models = await new Promise((resolve) => {
+      const r = http.request({ hostname: OLLAMA_CONFIG.host, port: OLLAMA_CONFIG.port,
+        path: '/api/tags', method: 'GET' }, (res2) => {
+        let d = ''; res2.on('data', c => d += c);
+        res2.on('end', () => { try { resolve(JSON.parse(d).models || []); } catch { resolve([]); } });
       });
-      _ollamaAvailable = models.length > 0;
-    } catch { _ollamaAvailable = false; }
-    const avgLatency = _cloudLatencyMs.length > 0
-      ? Math.round(_cloudLatencyMs.reduce((a,b)=>a+b,0) / _cloudLatencyMs.length) : null;
-    jsonOk(res, {
-      available: _ollamaAvailable,
-      model: OLLAMA_CONFIG.model,
-      models: models.map(m => ({ name: m.name, size: m.size })),
-      cloudAvgLatencyMs: avgLatency,
-      cloudIsSlow: _cloudIsSlow(),
-      mode: (!AI_CONFIG.apiKey && !AI_FALLBACK.apiKey && _ollamaAvailable) ? 'ollama-only' :
-            _cloudIsSlow() && _ollamaAvailable ? 'ollama-promoted' :
-            _ollamaAvailable ? 'cloud-primary-ollama-fallback' : 'cloud-only',
+      r.on('error', () => resolve([]));
+      r.setTimeout(3000, () => { r.destroy(); resolve([]); });
+      r.end();
     });
-    return;
-  }
+    _ollamaAvailable = models.length > 0;
+  } catch { _ollamaAvailable = false; }
+  const avgLatency = _cloudLatencyMs.length > 0
+    ? Math.round(_cloudLatencyMs.reduce((a,b)=>a+b,0) / _cloudLatencyMs.length) : null;
+  jsonOk(res, {
+    available: _ollamaAvailable,
+    model: OLLAMA_CONFIG.model,
+    models: models.map(m => ({ name: m.name, size: m.size })),
+    cloudAvgLatencyMs: avgLatency,
+    cloudIsSlow: _cloudIsSlow(),
+    mode: (!AI_CONFIG.apiKey && !AI_FALLBACK.apiKey && _ollamaAvailable) ? 'ollama-only' :
+          _cloudIsSlow() && _ollamaAvailable ? 'ollama-promoted' :
+          _ollamaAvailable ? 'cloud-primary-ollama-fallback' : 'cloud-only',
+  });
+}
 
-  // POST /api/ollama/supplier-msg — generate supplier contact email + WhatsApp msg via Qwen
-  if (pathname === '/api/ollama/supplier-msg' && req.method === 'POST') {
-    readBody(req).then(async (body) => {
-      const { supplier, product, type = 'email', yourName = 'Buyer', yourBusiness = '' } = body;
-      if (!supplier || !product) { jsonErr(res, 400, 'supplier and product required'); return; }
+async function handleOllamaSupplierMsg(req, res) {
+  const { supplier, product, type = 'email', yourName = 'Buyer', yourBusiness = '' } = req.body;
+  if (!supplier || !product) { jsonErr(res, 400, 'supplier and product required'); return; }
 
-      const emailPrompt = `Write a professional e-commerce supplier inquiry ${type === 'whatsapp' ? 'WhatsApp message (keep under 300 words, casual but professional)' : 'email (formal, 200-300 words)'} to:
+  const emailPrompt = `Write a professional e-commerce supplier inquiry ${type === 'whatsapp' ? 'WhatsApp message (keep under 300 words, casual but professional)' : 'email (formal, 200-300 words)'} to:
 Supplier: ${supplier.name || 'Supplier'} (${supplier.country || ''})
 Product: ${product}
 MOQ: ${supplier.moq || 'not specified'}
@@ -557,167 +574,131 @@ Include: greeting, what I'm looking for, quantity interested (2x MOQ), request f
 ${type === 'whatsapp' ? 'Start with Hi/Hello. Be conversational.' : 'Use proper email structure with Subject line at the top.'}
 Output ONLY the message, no explanations.`;
 
-      let message = '';
-      let source = 'ollama';
-      try {
-        if (_ollamaAvailable) {
-          message = await callOllama(emailPrompt, { temperature: 0.6, maxTokens: 600 });
-        } else {
-          throw new Error('Ollama not available');
-        }
-      } catch {
-        // Fallback to GLM
-        source = 'glm';
-        try {
-          const resp = await callAI([{ role: 'user', content: emailPrompt }], { max_tokens: 600, temperature: 0.6 });
-          message = resp?.choices?.[0]?.message?.content || '';
-        } catch { message = ''; }
-      }
-
-      if (!message) { jsonErr(res, 503, 'AI not available to generate message'); return; }
-      jsonOk(res, { message, type, source });
-    }).catch(e => jsonErr(res, 500, e.message));
-    return;
-  }
-
-  // POST /api/refresh-saved — refresh a saved product's live data
-  if (pathname === '/api/refresh-saved' && req.method === 'POST') {
-    readBody(req).then(async (body) => {
-      const { id, name, country = 'India' } = body;
-      if (!id && !name) { jsonErr(res, 400, 'id or name required'); return; }
-      try {
-        // Pull fresh product detail from AI
-        const searchName = name || (() => {
-          const row = getDB().prepare('SELECT name FROM saved_products WHERE id=?').get(id);
-          return row?.name || '';
-        })();
-        if (!searchName) { jsonErr(res, 404, 'Saved product not found'); return; }
-        const prompt = `Give current market data for this e-commerce product in ${country}: "${searchName}".
-Return JSON ONLY: { "demand": 0-100, "margin": 0-100, "competition": "Low|Medium|High", "avgPrice": number, "trendStatus": "rising|stable|declining", "note": "brief insight" }`;
-        const resp = await callAI([{ role: 'user', content: prompt }], { max_tokens: 300, temperature: 0.5 });
-        const text = resp?.choices?.[0]?.message?.content || '';
-        let parsed = {};
-        try { parsed = JSON.parse(text.replace(/```json|```/g, '').trim()); } catch {}
-        if (id && Object.keys(parsed).length > 0) {
-          const db = getDB();
-          db.prepare(`UPDATE saved_products SET demand=COALESCE(?,demand), margin=COALESCE(?,margin),
-            trend_status=COALESCE(?,trend_status), updated_at=datetime('now') WHERE id=?`)
-            .run(parsed.demand || null, parsed.margin || null, parsed.trendStatus || null, parseInt(id));
-        }
-        jsonOk(res, { updated: parsed, source: resp?._source || 'cloud' });
-      } catch (e) { jsonErr(res, 500, e.message); }
-    }).catch(e => jsonErr(res, 500, e.message));
-    return;
-  }
-
-  // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-  // GET /api/discovery/stream — SSE endless discovery loop
-  if (pathname === '/api/discovery/stream' && req.method === 'GET') {
-    const country    = reqUrl.searchParams.get('country') || 'India';
-    const city       = reqUrl.searchParams.get('city') || '';
-    const currency   = reqUrl.searchParams.get('currency') || 'INR';
-    const sessionId  = reqUrl.searchParams.get('sessionId');
-    if (!sessionId) { jsonErr(res, 400, 'sessionId required'); return; }
-
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no',
-      'Access-Control-Allow-Origin': '*',
-    });
-    res.flushHeaders();
-
-    const location = { country, city, currency };
-    const sseWrite = (data) => {
-      try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch {}
-    };
-
-    req.on('close', () => { discoveryEngineProxy.stopStream(sessionId); });
-    // Run async — does not block
-    discoveryEngineProxy.startStream(sessionId, location, sseWrite)
-      .catch(e => { console.error('[Discovery Route] Error:', e.message); })
-      .finally(() => { try { res.end(); } catch {} });
-    return;
-  }
-
-  // POST /api/discovery/feedback — save or skip feedback
-  if (pathname === '/api/discovery/feedback' && req.method === 'POST') {
-    readBody(req).then(body => {
-      const { sessionId, productId, product, action } = body;
-      if (!sessionId || !action) { jsonErr(res, 400, 'sessionId and action required'); return; }
-      if (action === 'save') discoveryEngineProxy.handleSave(sessionId, product);
-      else discoveryEngineProxy.handleSkip(sessionId, product);
-      jsonOk(res, { ok: true, action });
-    }).catch(e => jsonErr(res, 500, e.message));
-    return;
-  }
-
-  // DELETE /api/discovery/stream/:sessionId — stop a session
-  if (pathname.startsWith('/api/discovery/stream/') && req.method === 'DELETE') {
-    const sid = pathname.split('/').pop();
-    discoveryEngineProxy.stopStream(sid);
-    jsonOk(res, { ok: true, stopped: sid });
-    return;
-  }
-
-  // GET /api/discovery/top — top-100 stream-discovered products, sorted by hero_score
-  if (pathname === '/api/discovery/top' && req.method === 'GET') {
-    const country  = reqUrl.searchParams.get('country')  || 'India';
-    const limit    = Math.min(200, parseInt(reqUrl.searchParams.get('limit')  || '100'));
-    const offset   = parseInt(reqUrl.searchParams.get('offset') || '0');
-    const minScore = parseInt(reqUrl.searchParams.get('minScore') || '0');
-    try {
-      let products = dbGetTopDiscoveredProducts(country, limit, offset);
-      if (minScore > 0) products = products.filter(p => (p.hero_score || 0) >= minScore);
-      // Attach raw_listings parsed for detail view
-      products = products.map(p => {
-        let extra = {};
-        try { extra = JSON.parse(p.raw_listings || '{}'); } catch {}
-        let urls = [];
-        try { urls = JSON.parse(p.source_urls || '[]'); } catch {}
-        return { ...p, _extra: extra, source_urls: urls };
-      });
-      compressResponseSync(req, res, {
-        items: products,
-        total: products.length + offset,
-        limit, offset, country,
-        hasMore: products.length === limit,
-      });
-    } catch (e) {
-      jsonErr(res, 500, e.message);
-    }
-    return;
-  }
-
-  // POST /api/discovery/boost — adjust hero_score from Trending UI save/skip
-  if (pathname === '/api/discovery/boost' && req.method === 'POST') {
-    readBody(req).then(body => {
-      const { name, country = 'India', action } = body;
-      if (!name || !action) { jsonErr(res, 400, 'name and action required'); return; }
-      const delta = action === 'save' ? 8 : action === 'skip' ? -3 : 0;
-      if (delta !== 0) dbBoostProductScore(name, country, delta);
-      jsonOk(res, { ok: true, delta });
-    }).catch(e => jsonErr(res, 500, e.message));
-    return;
-  }
-
-  // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  let filePath = path.join(STATIC_DIR, pathname === '/' ? 'index.html' : pathname);
-  filePath = path.normalize(filePath);
-  if (!filePath.startsWith(STATIC_DIR)) { res.writeHead(403); res.end('Forbidden'); return; }
+  let message = '';
+  let source = 'ollama';
   try {
-    const stat = fs.statSync(filePath);
-    if (stat.isDirectory()) filePath = path.join(filePath, 'index.html');
-    const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-    res.end(fs.readFileSync(filePath));
-  } catch (err) {
-    res.writeHead(err.code === 'ENOENT' ? 404 : 500, { 'Content-Type': 'text/plain' });
-    res.end(err.code === 'ENOENT' ? 'Not found: ' + pathname : 'Error');
+    if (_ollamaAvailable) {
+      message = await callOllama(emailPrompt, { temperature: 0.6, maxTokens: 600 });
+    } else {
+      throw new Error('Ollama not available');
+    }
+  } catch {
+    source = 'glm';
+    try {
+      const resp = await callAI([{ role: 'user', content: emailPrompt }], { max_tokens: 600, temperature: 0.6 });
+      message = resp?.choices?.[0]?.message?.content || '';
+    } catch { message = ''; }
   }
-});
+
+  if (!message) { jsonErr(res, 503, 'AI not available to generate message'); return; }
+  jsonOk(res, { message, type, source });
+}
+
+async function handleRefreshSaved(req, res) {
+  const { id, name, country = 'India' } = req.body;
+  if (!id && !name) { jsonErr(res, 400, 'id or name required'); return; }
+  try {
+    const searchName = name || (() => {
+      const row = getDB().prepare('SELECT name FROM saved_products WHERE id=?').get(id);
+      return row?.name || '';
+    })();
+    if (!searchName) { jsonErr(res, 404, 'Saved product not found'); return; }
+    const prompt = `Give current market data for this e-commerce product in ${country}: "${searchName}".
+Return JSON ONLY: { "demand": 0-100, "margin": 0-100, "competition": "Low|Medium|High", "avgPrice": number, "trendStatus": "rising|stable|declining", "note": "brief insight" }`;
+    const resp = await callAI([{ role: 'user', content: prompt }], { max_tokens: 300, temperature: 0.5 });
+    const text = resp?.choices?.[0]?.message?.content || '';
+    let parsed = {};
+    try { parsed = JSON.parse(text.replace(/```json|```/g, '').trim()); } catch {}
+    if (id && Object.keys(parsed).length > 0) {
+      const db = getDB();
+      db.prepare(`UPDATE saved_products SET demand=COALESCE(?,demand), margin=COALESCE(?,margin),
+        trend_status=COALESCE(?,trend_status), updated_at=datetime('now') WHERE id=?`)
+        .run(parsed.demand || null, parsed.margin || null, parsed.trendStatus || null, parseInt(id));
+    }
+    jsonOk(res, { updated: parsed, source: resp?._source || 'cloud' });
+  } catch (e) { jsonErr(res, 500, e.message); }
+}
+
+async function handleDiscoveryStream(req, res) {
+  const country    = req.query.country || 'India';
+  const city       = req.query.city || '';
+  const currency   = req.query.currency || 'INR';
+  const sessionId  = req.query.sessionId;
+  if (!sessionId) { jsonErr(res, 400, 'sessionId required'); return; }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+    'Access-Control-Allow-Origin': '*',
+  });
+  if (res.flushHeaders) res.flushHeaders();
+
+  const location = { country, city, currency };
+  const sseWrite = (data) => {
+    try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch {}
+  };
+
+  req.on('close', () => { discoveryEngineProxy.stopStream(sessionId); });
+  discoveryEngineProxy.startStream(sessionId, location, sseWrite)
+    .catch(e => { console.error('[Discovery Route] Error:', e.message); })
+    .finally(() => { try { res.end(); } catch {} });
+}
+
+async function handleDiscoveryFeedback(req, res) {
+  const { sessionId, productId, product, action } = req.body;
+  if (!sessionId || !action) { jsonErr(res, 400, 'sessionId and action required'); return; }
+  if (action === 'save') discoveryEngineProxy.handleSave(sessionId, product);
+  else discoveryEngineProxy.handleSkip(sessionId, product);
+  jsonOk(res, { ok: true, action });
+}
+
+async function handleDiscoveryStopStream(req, res) {
+  const sid = req.params.sessionId;
+  discoveryEngineProxy.stopStream(sid);
+  jsonOk(res, { ok: true, stopped: sid });
+}
+
+async function handleDiscoveryTop(req, res) {
+  const country  = req.query.country  || 'India';
+  const limit    = Math.min(200, parseInt(req.query.limit  || '100'));
+  const offset   = parseInt(req.query.offset || '0');
+  const minScore = parseInt(req.query.minScore || '0');
+  try {
+    let products = dbGetTopDiscoveredProducts(country, limit, offset);
+    if (minScore > 0) products = products.filter(p => (p.hero_score || 0) >= minScore);
+    products = products.map(p => {
+      let extra = {};
+      try { extra = JSON.parse(p.raw_listings || '{}'); } catch {}
+      let urls = [];
+      try { urls = JSON.parse(p.source_urls || '[]'); } catch {}
+      return { ...p, _extra: extra, source_urls: urls };
+    });
+    res.json({
+      items: products,
+      total: products.length + offset,
+      limit, offset, country,
+      hasMore: products.length === limit,
+    });
+  } catch (e) {
+    jsonErr(res, 500, e.message);
+  }
+}
+
+async function handleDiscoveryBoost(req, res) {
+  const { name, country = 'India', action } = req.body;
+  if (!name || !action) { jsonErr(res, 400, 'name and action required'); return; }
+  const delta = action === 'save' ? 8 : action === 'skip' ? -3 : 0;
+  if (delta !== 0) dbBoostProductScore(name, country, delta);
+  jsonOk(res, { ok: true, delta });
+}
+
+// Serve static frontend files from current directory
+app.use(express.static('.'));
+
+// Setup HTTP server object to bind listener
+const server = createServer(app);
 
 
 // ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -1866,15 +1847,21 @@ process.on('unhandledRejection', (r) => console.error('[Server] Unhandled:', r))
 //  v2.5 â€” SQLite DB Handlers
 // â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    let b = '';
-    req.on('data', d => b += d);
-    req.on('end', () => { try { resolve(JSON.parse(b || '{}')); } catch(e) { reject(e); } });
-  });
-}
+
 function jsonOk(res, data)  { res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}); res.end(JSON.stringify(data)); }
-function jsonErr(res, msg, code=400) { res.writeHead(code, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}); res.end(JSON.stringify({error:msg})); }
+function jsonErr(res, arg1, arg2 = 400) {
+  let msg = arg1;
+  let code = arg2;
+  if (typeof arg1 === 'number') {
+    code = arg1;
+    msg = arg2;
+  } else if (typeof arg2 === 'number') {
+    msg = arg1;
+    code = arg2;
+  }
+  res.writeHead(code, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+  res.end(JSON.stringify({ error: String(msg) }));
+}
 
 function filterProductNames(items) {
   if (!Array.isArray(items)) return [];
@@ -2135,16 +2122,28 @@ async function handleDBSetSetting(req, res) {
     // Hot-swap AI key if relevant so UI actions that save settings apply immediately
     try {
       if (body.key === 'nvidia_api_key') {
-        if (body.value && String(body.value).length > 0) {
-          AI_CONFIG.apiKey = String(body.value);
-          AI_CONFIG.enabled = true;
-          logger.info('Key', 'Ã¢Å“â€œ NVIDIA API key applied from settings endpoint');
+        const val = body.value ? String(body.value) : '';
+        AI_CONFIG.apiKey = val;
+        AI_CONFIG.enabled = val.length > 0;
+        sharedConfig.apiKey = val;
+        if (val.length > 0) {
+          logger.info('Key', '✓ NVIDIA API key applied from settings endpoint');
           console.log('[Settings] Applied NVIDIA API key from /api/db/settings');
         } else {
-          AI_CONFIG.apiKey = '';
-          AI_CONFIG.enabled = false;
-          logger.info('Key', 'Ã¢Å“â€œ NVIDIA API key cleared via settings');
+          logger.info('Key', '✓ NVIDIA API key cleared via settings');
           console.log('[Settings] Cleared NVIDIA API key from /api/db/settings');
+        }
+      }
+      if (body.key === 'minimax_api_key') {
+        const val = body.value ? String(body.value) : '';
+        AI_FALLBACK.apiKey = val;
+        sharedConfig.fallbackApiKey = val;
+        if (val.length > 0) {
+          logger.info('Key', '✓ MiniMax API key applied from settings endpoint');
+          console.log('[Settings] Applied MiniMax API key from /api/db/settings');
+        } else {
+          logger.info('Key', '✓ MiniMax API key cleared via settings');
+          console.log('[Settings] Cleared MiniMax API key from /api/db/settings');
         }
       }
     } catch (e) {
