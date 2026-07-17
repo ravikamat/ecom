@@ -162,11 +162,8 @@ async function prefetchNextTrendPage(pageToPrefetch, country, category, perPage)
   if (window._trendPrefetched[pageToPrefetch]) return;
   console.log(`[Trending] Prefetching page ${pageToPrefetch} in background...`);
   try {
-    const response = await fetch('/api/trending/page', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ country, category, page: pageToPrefetch, perPage }),
-    });
+    const offset = (pageToPrefetch - 1) * perPage;
+    const response = await fetch(`/api/trending/feed?limit=${perPage}&offset=${offset}&category=${category}`);
     if (response.ok) {
       window._trendPrefetched[pageToPrefetch] = await response.json();
       console.log(`[Trending] Page ${pageToPrefetch} prefetch stored.`);
@@ -192,14 +189,243 @@ function initTrendObserver() {
   _trendObserver.observe(trigger);
 }
 
+async function updateResearchWorkerStatus() {
+  const span = document.getElementById('research-worker-status');
+  if (!span) return;
+  try {
+    const res = await fetch('/api/research/status');
+    if (res.ok) {
+      const data = await res.json();
+      span.textContent = `Background DB: ${data.total} discovered, ${data.researched} researched`;
+      span.style.display = 'inline-block';
+    }
+  } catch (e) {
+    console.warn('[Trending] Worker status check failed:', e);
+  }
+}
+
 async function initTrending() {
   const catSelect = document.getElementById('trend-category');
   if (catSelect && catSelect.options.length <= 1) {
     const cats = ['Electronics','Fashion','Home & Kitchen','Beauty','Health','Sports','Toys','Automotive','Pet Care','Office','Garden','Food & Beverage'];
     cats.forEach(c => { catSelect.innerHTML += `<option value="${c}">${c}</option>`; });
   }
+  updateResearchWorkerStatus();
+  if (window._researchWorkerInterval) clearInterval(window._researchWorkerInterval);
+  window._researchWorkerInterval = setInterval(updateResearchWorkerStatus, 15000);
+
+  // Render stream discoveries top-100 section
+  renderDiscoveryTop(false);
+  if (window._discoveryTopInterval) clearInterval(window._discoveryTopInterval);
+  window._discoveryTopInterval = setInterval(() => renderDiscoveryTop(true), 30000);
+
   resetAndRenderTrending();
 }
+
+/* ── Stream Discoveries Top-100 Section ──────────────────── */
+window._discoveryTopPage     = 1;
+window._discoveryTopPerPage  = 25;
+window._discoveryTopHasMore  = true;
+window._discoveryTopLoading  = false;
+window._discoveryTopAll      = [];
+
+async function renderDiscoveryTop(silent = false) {
+  const container = document.getElementById('discovery-top-section');
+  if (!container) return;
+
+  const country  = AppState.selectedCountry || 'India';
+  const currency = AppState.displayCurrency || 'INR';
+  const sym      = { INR:'₹', USD:'$', GBP:'£', AED:'د.إ' }[currency] || currency;
+  const perPage  = window._discoveryTopPerPage;
+  const offset   = (window._discoveryTopPage - 1) * perPage;
+
+  if (!silent) {
+    container.innerHTML = `
+      <div class="section-header" style="margin-bottom:12px;">
+        <h3 style="margin:0;display:flex;align-items:center;gap:8px;">
+          🌊 Stream Discoveries
+          <span style="font-size:11px;font-weight:400;color:var(--text-secondary);">Top products found by Live Stream, ranked by Hero Score</span>
+          <span id="disc-top-count" class="tag" style="font-size:11px;background:rgba(6,182,212,0.15);color:#06b6d4;margin-left:4px;"></span>
+        </h3>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select class="select" id="disc-top-minscore" onchange="renderDiscoveryTop(false)" style="font-size:12px;padding:4px 8px;">
+            <option value="0">All Scores</option>
+            <option value="50">Score ≥ 50</option>
+            <option value="65" selected>Score ≥ 65</option>
+            <option value="75">Score ≥ 75 🔥</option>
+          </select>
+          <button class="btn btn-sm" onclick="renderDiscoveryTop(false)" title="Refresh">🔄</button>
+        </div>
+      </div>
+      <div id="disc-top-body">
+        <div style="text-align:center;padding:20px;color:var(--text-secondary);">
+          <div class="spinner" style="margin:0 auto 8px;"></div>Loading stream discoveries...
+        </div>
+      </div>
+      <div id="disc-top-pagination" style="display:flex;gap:6px;justify-content:center;margin-top:12px;flex-wrap:wrap;"></div>`;
+  }
+
+  if (window._discoveryTopLoading) return;
+  window._discoveryTopLoading = true;
+
+  try {
+    const minScore = parseInt(document.getElementById('disc-top-minscore')?.value || '65');
+    const url = `/api/discovery/top?country=${encodeURIComponent(country)}&limit=${perPage}&offset=${offset}&minScore=${minScore}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Server error');
+    const data = await res.json();
+    const items = data.items || [];
+
+    window._discoveryTopHasMore = data.hasMore;
+    window._discoveryTopAll     = items;
+
+    const countEl = document.getElementById('disc-top-count');
+    if (countEl) countEl.textContent = `${data.total || items.length} total`;
+
+    const body = document.getElementById('disc-top-body');
+    if (!body) return;
+
+    if (items.length === 0) {
+      body.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-secondary);">
+        <div style="font-size:28px;margin-bottom:8px;">🌊</div>
+        No stream discoveries yet. Open the <strong>🌊 Live Stream</strong> tab to start finding products.
+      </div>`;
+      return;
+    }
+
+    const rows = items.map((p, i) => {
+      const rank        = offset + i + 1;
+      const heroScore   = Math.round(p.hero_score || 0);
+      const margin      = Math.round(p.margin_pct || 0);
+      const demand      = Math.round(p.demand_velocity || 50);
+      const retail      = p.avg_retail_price || 0;
+      const cost        = p.avg_cost_price   || 0;
+      const comp        = p.competition_level || '—';
+      const conf        = p.confidence || 'low';
+      const reviews     = p._extra?.reviews || 0;
+      const whyTrend    = p._extra?.whyTrending || '';
+      const sourceUrls  = Array.isArray(p.source_urls) ? p.source_urls : [];
+
+      const rankBg    = rank <= 3  ? 'background:rgba(255,215,0,0.08);' :
+                        rank <= 10 ? 'background:rgba(255,107,53,0.04);' : '';
+      const rankBadge = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
+
+      const scoreColor = heroScore >= 75 ? '#ff6b35' : heroScore >= 50 ? '#f59e0b' : '#94a3b8';
+      const confIcon   = { high:'🟢', medium:'🟡', low:'🔴' }[conf] || '⚪';
+      const compIcon   = { low:'✅', medium:'⚠️', high:'❌', 'Low':'✅','Medium':'⚠️','High':'❌' }[comp] || '—';
+
+      const depthBadge = p.research_depth >= 2
+        ? `<span class="tag" style="font-size:9px;background:rgba(16,185,129,0.15);color:#10b981;">✓ Verified</span>`
+        : `<span class="tag" style="font-size:9px;background:rgba(148,163,184,0.1);color:var(--text-secondary);">Discovered</span>`;
+
+      const sourceLink = sourceUrls[0]
+        ? `<a href="${sourceUrls[0]}" target="_blank" rel="noopener" style="font-size:10px;color:var(--accent);text-decoration:none;">↗ View</a>`
+        : '';
+
+      const isSaved = _isProductSaved(p.canonical_name);
+      const saveBtn = isSaved
+        ? `<button class="btn btn-sm" disabled style="opacity:0.5;">✓ Saved</button>`
+        : `<button class="btn btn-sm btn-primary" onclick="discTopSave(${JSON.stringify(p.canonical_name).replace(/"/g,'&quot;')}, '${country}')">💾 Save</button>`;
+
+      const tooltip = whyTrend ? `title="${whyTrend.replace(/"/g,"'")}"` : '';
+
+      return `<tr style="${rankBg}" ${tooltip}>
+        <td style="text-align:center;font-size:13px;font-weight:700;color:var(--accent);">${rankBadge}</td>
+        <td>
+          <div style="font-weight:600;font-size:13px;color:var(--text-primary);">${safeAttr(p.canonical_name || '—')}</div>
+          ${depthBadge}
+          ${p.platform_count > 1 ? `<span class="muted" style="font-size:10px;">· ${p.platform_count} platforms</span>` : ''}
+        </td>
+        <td style="text-align:center;">
+          <span style="font-weight:700;font-size:15px;color:${scoreColor};">${heroScore}</span>
+        </td>
+        <td style="font-size:12px;color:var(--text-secondary);">${p.category || '—'}</td>
+        <td style="font-weight:600;">${sym}${retail.toLocaleString()}</td>
+        <td style="color:var(--positive);">${sym}${cost.toLocaleString()}</td>
+        <td style="font-weight:700;color:${margin >= 60 ? '#10b981' : margin >= 40 ? '#f59e0b' : '#ef4444'};">${margin}%</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <div style="width:${Math.round(demand * 0.6)}px;height:6px;background:linear-gradient(90deg,#06b6d4,#10b981);border-radius:3px;max-width:60px;"></div>
+            <span style="font-size:11px;">${demand}</span>
+          </div>
+        </td>
+        <td style="font-size:12px;">${compIcon} ${comp}</td>
+        <td style="font-size:11px;">${confIcon} ${conf}</td>
+        <td style="font-size:11px;color:var(--text-secondary);">${reviews > 0 ? reviews.toLocaleString() : '—'}</td>
+        <td style="display:flex;gap:6px;align-items:center;">${sourceLink} ${saveBtn}</td>
+      </tr>`;
+    });
+
+    body.innerHTML = `
+      <div class="table-wrap" style="max-height:520px;overflow-y:auto;">
+        <table>
+          <thead><tr>
+            <th>Rank</th><th>Product</th><th>Hero Score ⬇</th><th>Category</th>
+            <th>Retail</th><th>Est. Cost</th><th>Margin</th><th>Demand</th>
+            <th>Competition</th><th>Confidence</th><th>Reviews</th><th>Action</th>
+          </tr></thead>
+          <tbody>${rows.join('')}</tbody>
+        </table>
+      </div>`;
+
+    // Pagination
+    _renderDiscTopPagination(data.total || items.length, perPage, offset);
+
+  } catch (e) {
+    const body = document.getElementById('disc-top-body');
+    if (body && !silent) body.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-secondary);">No stream data yet — start the 🌊 Live Stream to populate.</div>`;
+  } finally {
+    window._discoveryTopLoading = false;
+  }
+}
+
+function _renderDiscTopPagination(total, perPage, offset) {
+  const el = document.getElementById('disc-top-pagination');
+  if (!el) return;
+  const totalPages = Math.ceil(total / perPage);
+  const currentPage = Math.floor(offset / perPage) + 1;
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+  let html = '';
+  for (let p = 1; p <= Math.min(totalPages, 8); p++) {
+    const active = p === currentPage ? 'btn-primary' : 'btn-ghost';
+    html += `<button class="btn btn-sm ${active}" onclick="discTopGoPage(${p})">${p}</button>`;
+  }
+  if (currentPage < totalPages) html += `<button class="btn btn-sm btn-ghost" onclick="discTopGoPage(${currentPage+1})">Next ▶</button>`;
+  el.innerHTML = html;
+}
+
+function discTopGoPage(page) {
+  window._discoveryTopPage = page;
+  renderDiscoveryTop(false);
+}
+
+async function discTopSave(name, country) {
+  // Boost score in DB
+  fetch('/api/discovery/boost', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, country, action: 'save' }),
+  }).catch(() => {});
+
+  // Find product in memory and save it
+  const product = window._discoveryTopAll?.find(p => p.canonical_name === name);
+  if (product && typeof saveProduct === 'function') {
+    saveProduct({
+      name:        product.canonical_name,
+      category:    product.category,
+      price:       product.avg_retail_price,
+      costPrice:   product.avg_cost_price,
+      margin:      product.margin_pct,
+      demand:      product.demand_velocity,
+      competition: product.competition_level,
+      country:     country,
+      heroScore:   product.hero_score,
+    });
+  }
+  // Refresh with slight delay
+  setTimeout(() => renderDiscoveryTop(true), 500);
+}
+
 
 /* ── Main Render ─────────────────────────────────────────── */
 async function renderTrending(append = false) {
@@ -241,20 +467,41 @@ async function renderTrending(append = false) {
         data = window._trendPrefetched[window._trendPage];
         delete window._trendPrefetched[window._trendPage];
       } else {
-        const response = await fetch('/api/trending/page', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ country: country === 'all' ? 'USA' : country, category, page: window._trendPage, perPage: limit }),
-        });
+        const offset = (window._trendPage - 1) * limit;
+        const response = await fetch(`/api/trending/feed?limit=${limit}&offset=${offset}&category=${category}`);
         if (!response.ok) throw new Error('Server error');
         data = await response.json();
       }
 
-      window._trendHasMore = !!data.hasMore;
+      window._trendHasMore = data.items ? (data.items.length === limit) : false;
       let listings = data.items || [];
-      
-      // Compute scores and store in listings
-      listings = listings.map(p => ({ ...p, _winnerScore: p.winnerScore || computeWinnerScore(p) }));
+
+      // Normalize fields from temp table schema to compatible properties
+      listings = listings.map(p => {
+        const name = p.name || p.canonical_name || '—';
+        const price = p.price || p.avg_retail_price || p.avg_price || 0;
+        const demand = p.demand || p.demand_velocity || 50;
+        const margin = p.margin || p.margin_quality || 30;
+        const score = p.hero_score || p.provisional_score || p._winnerScore || 50;
+
+        let comp = p.competition;
+        if (!comp) {
+          const gap = p.competition_gap ?? 50;
+          comp = gap >= 70 ? 'Low' : gap >= 40 ? 'Medium' : 'High';
+        }
+
+        return {
+          ...p,
+          name,
+          price,
+          demand,
+          margin,
+          competition: comp,
+          _winnerScore: score,
+          winnerScore: score,
+          platformCount: p.platformCount || p.source_count || 1
+        };
+      });
 
       // Filter by score
       const minScore = scoreFilter !== 'all' ? parseInt(scoreFilter) : 0;
@@ -290,7 +537,7 @@ async function renderTrending(append = false) {
 
           const savedBadge = isSaved ? ' <span class="tag" style="font-size:9px;background:rgba(34,197,94,0.15);color:#22c55e;">✓ Saved</span>' : '';
           const nameCell = `<td>
-            <span data-action="open-product-detail" data-index="${globalIdx}"
+            <span data-action="open-product-detail" data-index="${globalIdx}" data-name="${(p.name||'').replace(/"/g,'&quot;')}"
               style="cursor:pointer;color:var(--text-primary);font-weight:600;text-decoration:none;border-bottom:1px dashed var(--accent);transition:color 0.2s;"
               onmouseover="this.style.color='var(--accent)'"
               onmouseout="this.style.color='var(--text-primary)'">
@@ -330,7 +577,76 @@ async function renderTrending(append = false) {
           initTrendObserver();
         }
       } else if (!append) {
-        tbody.innerHTML = '<tr><td colspan="10" class="muted" style="text-align:center;padding:30px;">No results found.</td></tr>';
+        // Feed DB is empty — fall back to live scrape via /api/trending/page
+        console.log('[Trending] Feed empty, triggering live scrape fallback...');
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:30px;">
+          <div class="spinner" style="margin:0 auto 10px;"></div>
+          <div style="color:var(--text-secondary);font-size:13px;">🔍 Fetching live trending products... (first load may take 15-30s)</div>
+        </td></tr>`;
+        try {
+          const scrapeRes = await fetch('/api/trending/page', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ country, category, page: 1, perPage: limit })
+          });
+          if (scrapeRes.ok) {
+            const scrapeData = await scrapeRes.json();
+            const scrapeItems = (scrapeData.items || []).map(p => ({
+              ...p,
+              name: p.name || '—',
+              _winnerScore: p.winnerScore || p.hero_score || 50,
+              winnerScore: p.winnerScore || p.hero_score || 50,
+              platformCount: p.platformCount || 1
+            }));
+            if (scrapeItems.length > 0) {
+              window._trendListings = scrapeItems;
+              window._lastLiveTrending = scrapeItems;
+              const startIndex = 0;
+              const html = scrapeItems.map((p, i) => {
+                const price     = p.price ? CurrencyEngine.convert(p.price, p.currency || currency, currency) : 0;
+                const demandVal = Math.min(100, Math.max(0, p.demand || 50));
+                const marginVal = p.margin || p.profitMargin;
+                const compLevel = p.competition || 'Medium';
+                const score     = p._winnerScore;
+                const platCount = p.platformCount || 1;
+                const isSaved   = _isProductSaved(p.name);
+                const rowBg     = isSaved ? 'background:rgba(34,197,94,0.06);' : (score >= 75 ? 'background:rgba(255,107,53,0.04);' : '');
+                const savedBadge = isSaved ? ' <span class="tag" style="font-size:9px;background:rgba(34,197,94,0.15);color:#22c55e;">✓ Saved</span>' : '';
+                const saveBtn = isSaved
+                  ? `<button class="btn btn-sm" disabled style="opacity:0.5;cursor:default;">✓ Saved</button>`
+                  : `<button class="btn btn-sm" data-action="save-live-trend" data-index="${i}">Save</button>`;
+                return `<tr style="${rowBg}">
+                  <td><span data-action="open-product-detail" data-index="${i}" data-name="${(p.name||'').replace(/"/g,'&quot;')}"
+                    style="cursor:pointer;color:var(--text-primary);font-weight:600;border-bottom:1px dashed var(--accent);"
+                    onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-primary)'">
+                    ${safeAttr(p.name || '—')}</span>${savedBadge}</td>
+                  <td>${scoreBadge(score, p)}</td>
+                  <td><span class="tag tag-accent">${getFlag(country === 'all' ? 'India' : country)} ${country === 'all' ? 'India' : country}</span></td>
+                  <td>${safeAttr(p.category || '—')}</td>
+                  <td>${demandBar(demandVal)}</td>
+                  <td class="positive-text mono">${marginVal != null ? marginVal + '%' : '—'}</td>
+                  <td>${competitionTag(compLevel)}</td>
+                  <td>${renderTrendingPlatformPills(p, i)}</td>
+                  <td class="price mono">${price > 0 ? formatPrice(price, currency) : '—'}</td>
+                  <td>${saveBtn}</td>
+                </tr>`;
+              }).join('');
+              tbody.innerHTML = html;
+              initTrendObserver();
+            } else {
+              tbody.innerHTML = `<tr><td colspan="10" class="muted" style="text-align:center;padding:30px;">
+                ⚠️ No products found yet. Background research is running — check back in a minute.
+              </td></tr>`;
+            }
+          } else {
+            throw new Error('Scrape endpoint error');
+          }
+        } catch (scrapeErr) {
+          console.error('[Trending] Live scrape fallback failed:', scrapeErr);
+          tbody.innerHTML = `<tr><td colspan="10" class="muted" style="text-align:center;padding:30px;">
+            Failed to load trending products. Please check server logs.
+          </td></tr>`;
+        }
       }
 
       // Prefetch next 2 pages in background
@@ -391,7 +707,7 @@ async function renderLocalTrending(tbody, country, category, sortBy, scoreFilter
     const url     = buildPlatformUrl(platStr, p.name, p.country);
     return `<tr style="${score >= 75 ? 'background:rgba(255,107,53,0.04);' : ''}">
       <td>
-        <span data-action="open-product-detail" data-index="${i}"
+        <span data-action="open-product-detail" data-index="${i}" data-name="${(p.name||'').replace(/"/g,'&quot;')}"
           style="cursor:pointer;font-weight:600;border-bottom:1px dashed var(--accent);"
           onmouseover="this.style.color='var(--accent)'"
           onmouseout="this.style.color=''">
@@ -425,13 +741,23 @@ async function openProductDetail(p) {
   const loading = document.getElementById('pdm-loading');
   const content = document.getElementById('pdm-content');
 
+  // Guard: modal elements must exist
+  if (!overlay || !loading || !content) {
+    console.error('[ProductDetail] Modal HTML missing — check product-detail-modal in index.html');
+    return;
+  }
+
   // Reset + show overlay
   overlay.classList.remove('hidden');
+  document.body.style.overflow = 'hidden'; // prevent background scroll
   loading.style.display = 'block';
   content.style.display = 'none';
-  document.getElementById('pdm-name').textContent = p.name || 'Loading...';
-  document.getElementById('pdm-category').textContent = p.category || '';
-  document.getElementById('pdm-score-row').innerHTML = '';
+  const nameEl    = document.getElementById('pdm-name');
+  const catEl     = document.getElementById('pdm-category');
+  const scoreEl   = document.getElementById('pdm-score-row');
+  if (nameEl)  nameEl.textContent  = p.name || 'Loading...';
+  if (catEl)   catEl.textContent   = p.category || '';
+  if (scoreEl) scoreEl.innerHTML   = '';
 
   const country  = AppState.selectedCountry === 'all' ? 'USA' : AppState.selectedCountry;
   const currency = AppState.displayCurrency;
@@ -1008,7 +1334,9 @@ function _renderProductDetailFallback(p, currency) {
 }
 
 function closeProductDetail() {
-  document.getElementById('product-detail-modal').classList.add('hidden');
+  const overlay = document.getElementById('product-detail-modal');
+  if (overlay) overlay.classList.add('hidden');
+  document.body.style.overflow = ''; // restore scroll
 }
 
 /* ── AI Discover ─────────────────────────────────────────── */
@@ -1099,9 +1427,29 @@ document.addEventListener('click', async function(e) {
   // ── Open product detail (live listings)
   const pdBtn = e.target.closest('[data-action="open-product-detail"]');
   if (pdBtn) {
-    const idx = parseInt(pdBtn.dataset.index);
-    const listings = window._lastLiveTrending;
-    if (listings && listings[idx]) openProductDetail(listings[idx]);
+    const idx      = parseInt(pdBtn.dataset.index);
+    const nameAttr = (pdBtn.dataset.name || pdBtn.textContent || '').trim();
+    const listings = window._lastLiveTrending || window._trendListings || [];
+
+    // Try index lookup first
+    let product = (!isNaN(idx) && listings[idx]) ? listings[idx] : null;
+
+    // Fallback: search by name
+    if (!product && nameAttr) {
+      const norm = nameAttr.toLowerCase().slice(0, 40);
+      product = listings.find(p => (p.name || '').toLowerCase().slice(0, 40) === norm);
+    }
+
+    // Last resort: open modal with just the name so AI can still fetch details
+    if (!product && nameAttr) {
+      product = { name: nameAttr, _winnerScore: 50 };
+    }
+
+    if (product) {
+      openProductDetail(product);
+    } else {
+      console.warn('[Trending] No product found for click — idx:', idx, 'name:', nameAttr);
+    }
     return;
   }
 
@@ -1247,7 +1595,7 @@ async function deepResearchTrending() {
 
       tbody.innerHTML += `<tr class="product-row" data-idx="${i}">
         <td>
-          <span data-action="open-product-detail" data-index="${i}"
+          <span data-action="open-product-detail" data-index="${i}" data-name="${(p.name||'').replace(/"/g,'&quot;')}"
             style="cursor:pointer;font-weight:600;border-bottom:1px dashed var(--accent);color:var(--text-primary);"
             onmouseover="this.style.color='var(--accent)'"
             onmouseout="this.style.color='var(--text-primary)'">

@@ -2,7 +2,9 @@
    Saved List Page
    ============================================================ */
 
-async function renderSaved() {
+let _autoRefreshInProgress = false; // guard: prevent recursive refresh loops
+
+async function renderSaved(skipAutoRefresh = false) {
   const container = document.getElementById('saved-list');
   if (!container) return;
 
@@ -17,6 +19,9 @@ async function renderSaved() {
       </div>`;
     return;
   }
+
+  const now = Date.now();
+  const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
 
   container.innerHTML = saved.map(s => {
     const sourceClass = s.source === 'trending' ? 'tag-blue'
@@ -35,12 +40,13 @@ async function renderSaved() {
     ) : '';
 
     // Staleness
-    const now = Date.now();
-    const lastUpdate = new Date(s.updatedAt || s.savedAt || s.date || 0).getTime();
-    const daysSince  = Math.floor((now - lastUpdate) / (1000 * 60 * 60 * 24));
-    const staleColor = daysSince >= 7 ? 'var(--danger)' : daysSince >= 2 ? 'var(--warning)' : 'var(--positive)';
-    const staleText  = daysSince === 0 ? 'Updated today' : `Updated ${daysSince}d ago`;
-    const isDeclinig = s.trendStatus === 'declining';
+    const lastRefresh  = new Date(s.lastAutoRefresh || s.updatedAt || s.savedAt || s.date || 0).getTime();
+    const lastUpdate   = new Date(s.updatedAt || s.savedAt || s.date || 0).getTime();
+    const daysSince    = Math.floor((now - lastUpdate) / (1000 * 60 * 60 * 24));
+    const isStale      = (now - lastRefresh) > TWO_DAYS_MS;
+    const staleColor   = daysSince >= 7 ? 'var(--danger)' : daysSince >= 2 ? 'var(--warning)' : 'var(--positive)';
+    const staleText    = daysSince === 0 ? 'Updated today' : `Updated ${daysSince}d ago`;
+    const isDeclinig   = s.trendStatus === 'declining';
 
     return `
     <div class="saved-item ${s.pinned ? 'saved-item-pinned' : ''} ${isDeclinig ? 'saved-item-declining' : ''}" style="cursor:pointer;" data-action="open-detail" data-id="${s.id}">
@@ -50,7 +56,9 @@ async function renderSaved() {
           ${isDeclinig ? '<span class="saved-decline-badge" title="Trend declining">🔴 Not in Trend</span>' : ''}
           ${s.pinned ? '<span class="saved-pin-badge" title="Pinned — protected from deletion">📌 Pinned</span>' : ''}
           ${s.platform ? `<span class="tag tag-blue">${s.platform}</span>` : ''}
-          <span style="font-size:10px;color:${staleColor};" title="Last data refresh">${staleText}</span>
+          <span style="font-size:10px;color:${staleColor};" title="Last data refresh">
+            ${isStale && !_autoRefreshInProgress ? '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--warning);margin-right:3px;animation:pulse 2s infinite;vertical-align:middle;"></span>' : ''}${staleText}
+          </span>
         </div>
         <div class="saved-meta" style="margin-top:4px;">
           <span class="tag ${sourceClass}">${s.source}</span>
@@ -64,7 +72,7 @@ async function renderSaved() {
       </div>
       <div class="row-actions" style="gap:6px;">
         <button class="btn btn-sm btn-primary" data-action="open-detail" data-id="${s.id}">📊 Details</button>
-        <button class="btn btn-sm btn-refresh" data-action="refresh-saved" data-id="${s.id}" title="Refresh current data from AI">🔄</button>
+        <button class="btn btn-sm btn-refresh" data-action="refresh-saved" data-id="${s.id}" title="Refresh current data from AI" id="refresh-btn-${s.id}">🔄</button>
         <button
           class="btn btn-sm ${s.pinned ? 'btn-pin-active' : 'btn-pin'}"
           data-action="pin-saved"
@@ -78,13 +86,60 @@ async function renderSaved() {
       </div>
     </div>`;
   }).join('');
+
+  // ── Background auto-refresh for stale items (> 2 days) ──
+  // Guard: skip if already running or caller said to skip
+  if (skipAutoRefresh || _autoRefreshInProgress) return;
+
+  const staleItems = saved.filter(s => {
+    const lastRefresh = new Date(s.lastAutoRefresh || s.updatedAt || s.savedAt || 0).getTime();
+    return (now - lastRefresh) > TWO_DAYS_MS;
+  }).slice(0, 5); // max 5 per page-open
+
+  if (staleItems.length === 0) return;
+
+  _autoRefreshInProgress = true;
+  Toast.info(`🔄 Auto-refreshing ${staleItems.length} stale item${staleItems.length > 1 ? 's' : ''} in background…`);
+
+  // Fire-and-forget — does NOT call renderSaved() to avoid flicker
+  (async () => {
+    let refreshed = 0;
+    for (const item of staleItems) {
+      const btn = document.getElementById(`refresh-btn-${item.id}`);
+      if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+      try {
+        const updated = await refreshSavedProductDetail(item.id);
+        if (updated) {
+          refreshed++;
+          // Update just the stale text in-place — no full re-render, no flicker
+          const card = container.querySelector(`[data-id="${item.id}"]`);
+          if (card) {
+            const staleSpan = card.querySelector('[title="Last data refresh"]');
+            if (staleSpan) staleSpan.innerHTML = `<span style="color:var(--positive);font-size:10px;">Updated just now</span>`;
+          }
+        }
+      } catch (e) {
+        console.warn('[AutoRefresh] Failed for', item.name, e.message);
+      }
+      if (btn) { btn.textContent = '🔄'; btn.disabled = false; }
+    }
+    _autoRefreshInProgress = false;
+    if (refreshed > 0) {
+      Toast.success(`✅ ${refreshed} item${refreshed > 1 ? 's' : ''} refreshed with latest data`);
+    }
+  })();
 }
 
 // Event delegation for saved list actions
 document.addEventListener('click', async function(e) {
   // Open detail modal — product name click or Details button
+  // Exclude all action buttons so they don't bubble up to open-detail
   const detailBtn = e.target.closest('[data-action="open-detail"]');
-  if (detailBtn && !e.target.closest('[data-action="delete-saved"]')) {
+  if (detailBtn
+    && !e.target.closest('[data-action="delete-saved"]')
+    && !e.target.closest('[data-action="refresh-saved"]')
+    && !e.target.closest('[data-action="pin-saved"]')
+  ) {
     const id = parseInt(detailBtn.dataset.id);
     if (typeof SavedDetailModal !== 'undefined') {
       SavedDetailModal.open(id, window.db);
@@ -101,8 +156,8 @@ document.addEventListener('click', async function(e) {
   if (delBtn) {
     e.stopPropagation();
     const id = parseInt(delBtn.dataset.id);
-    // Guard: do not delete pinned items
-    const item = await db.saved.get(id);
+    // Guard: check if pinned via REST API
+    const item = await getSavedById(id);
     if (item?.pinned) {
       Toast.warning('📌 This item is pinned. Unpin it first to delete.');
       return;
@@ -110,7 +165,7 @@ document.addEventListener('click', async function(e) {
     if (!confirm('Remove this product?')) return;
     await deleteSaved(id);
     Toast.success('Item removed');
-    await renderSaved();
+    await renderSaved(true);
     await renderDashboard();
     return;
   }
@@ -120,12 +175,12 @@ document.addEventListener('click', async function(e) {
   if (pinBtn) {
     e.stopPropagation();
     const id = parseInt(pinBtn.dataset.id);
-    const item = await db.saved.get(id);
+    const item = await getSavedById(id);
     if (!item) return;
     const nowPinned = !item.pinned;
-    await db.saved.update(id, { pinned: nowPinned, pinnedAt: nowPinned ? new Date().toISOString() : null });
+    await updateSaved(id, { pinned: nowPinned ? 1 : 0, pinnedAt: nowPinned ? new Date().toISOString() : null });
     Toast.success(nowPinned ? '📌 Product pinned — protected from deletion!' : '🗑 Product unpinned.');
-    await renderSaved();
+    await renderSaved(true);
     return;
   }
 

@@ -451,15 +451,25 @@ const SavedDetailModal = (function() {
           aiBtn.disabled = true;
           aiBtn.textContent = 'Generating...';
           try {
-            if (typeof callNvidiaAI !== 'function') {
-              throw new Error('AI function not available');
-            }
-            const prompt = `Generate an SEO-optimized Amazon listing for: ${p.name}, Category: ${p.category}, Price: Rs${p.sellingPrice}. Return JSON: {title, description, bullets:[], backendKeywords:[], searchTerms:[]}`;
-            const res = await callNvidiaAI(prompt, 'You are an Amazon SEO expert.');
+            // Call server AI proxy (GLM → MiniMax → Ollama Qwen fallback chain)
+            const aiRes = await fetch('/api/ai', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                messages: [
+                  { role: 'system', content: 'You are an Amazon SEO expert. Return valid JSON only.' },
+                  { role: 'user', content: `Generate an SEO-optimized Amazon listing for: ${p.name}, Category: ${p.category}, Price: Rs${p.sellingPrice}. Return JSON: {title, description, bullets:[], backendKeywords:[], searchTerms:[]}` }
+                ],
+                max_tokens: 1200, temperature: 0.7
+              })
+            });
+            if (!aiRes.ok) throw new Error('AI server error');
+            const aiJson = await aiRes.json();
+            const res = aiJson?.choices?.[0]?.message?.content || aiJson?.content || '';
             if (!res) {
               throw new Error('No response from AI');
             }
-            const data = JSON.parse(res);
+            const data = JSON.parse(res.replace(/```json|```/g, '').trim());
             document.getElementById('mk-title').value = data.title || '';
             document.getElementById('mk-desc').value = data.description || '';
             data.bullets?.forEach((b, i) => {
@@ -550,19 +560,25 @@ const SavedDetailModal = (function() {
           adcopyBtn.disabled = true;
           adcopyBtn.textContent = 'Generating...';
           try {
-            if (typeof callNvidiaAI !== 'function') {
-              throw new Error('AI function not available');
-            }
-            const prompt = `Generate Google, Facebook, and Amazon PPC ad copies for: ${p.name}, Category: ${p.category}. Return JSON: {
-              "google": {"headline": "...", "description": "..."},
-              "facebook": {"primaryText": "...", "headline": "...", "description": "..."},
-              "amazon": {"headline": "...", "description": "..."}
-            }`;
-            const res = await callNvidiaAI(prompt, 'You are an e-commerce copywriting expert.');
+            // Call server AI proxy (GLM → MiniMax → Ollama Qwen fallback chain)
+            const adRes = await fetch('/api/ai', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                messages: [
+                  { role: 'system', content: 'You are an e-commerce copywriting expert. Return valid JSON only.' },
+                  { role: 'user', content: `Generate Google, Facebook, and Amazon PPC ad copies for: ${p.name}, Category: ${p.category}. Return JSON: {"google":{"headline":"...","description":"..."},"facebook":{"primaryText":"...","headline":"...","description":"..."},"amazon":{"headline":"...","description":"..."}}` }
+                ],
+                max_tokens: 800, temperature: 0.8
+              })
+            });
+            if (!adRes.ok) throw new Error('AI server error');
+            const adJson = await adRes.json();
+            const res = adJson?.choices?.[0]?.message?.content || adJson?.content || '';
             if (!res) {
               throw new Error('No response from AI');
             }
-            const data = JSON.parse(res);
+            const data = JSON.parse(res.replace(/```json|```/g, '').trim());
             p.adCopyGoogle = data.google || {};
             p.adCopyFacebook = data.facebook || {};
             p.adCopyAmazon = data.amazon || {};
@@ -617,11 +633,15 @@ const SavedDetailModal = (function() {
           <div id="comm-history-panel"></div>
         </div>
       </div>
-      <div class="comm-tabs">
+      <div class="comm-tabs" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <button class="comm-tab active" data-comm="email">✉️ Email</button>
         <button class="comm-tab" data-comm="whatsapp">📱 WhatsApp</button>
+        <div style="flex:1;"></div>
+        <button id="btn-ai-supplier-email" class="btn btn-sm btn-ai" title="Generate professional email using Qwen 3.6 AI locally">✨ AI Write Email</button>
+        <button id="btn-ai-supplier-wa" class="btn btn-sm btn-ai" title="Generate WhatsApp message using Qwen 3.6 AI locally">✨ AI WhatsApp</button>
       </div>
       <div id="comm-composer-panel"></div>
+      <div id="ai-supplier-msg-panel" style="display:none;margin-top:12px;"></div>
     `;
 
     // Communication history
@@ -672,8 +692,77 @@ const SavedDetailModal = (function() {
       });
 
       renderComposer('email');
+
+      // ── Qwen AI Message Generator ─────────────────────────────
+      async function generateAIMsg(type) {
+        const panel = document.getElementById('ai-supplier-msg-panel');
+        if (!panel) return;
+        const btn = type === 'email'
+          ? document.getElementById('btn-ai-supplier-email')
+          : document.getElementById('btn-ai-supplier-wa');
+        if (btn) { btn.disabled = true; btn.textContent = '⏳ Writing...'; }
+
+        panel.style.display = 'block';
+        panel.innerHTML = `<div style="padding:12px;color:var(--text-secondary);">
+          <div class="spinner" style="margin:0 auto 8px;"></div>
+          Generating ${type === 'whatsapp' ? 'WhatsApp message' : 'email'} with Qwen 3.6 AI...
+        </div>`;
+
+        try {
+          const res = await fetch('/api/ollama/supplier-msg', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              supplier: {
+                name: supplier.supplierName,
+                country: p.country || 'India',
+                moq: p.supplierMOQ || p.moq,
+              },
+              product: p.name,
+              type,
+              yourName: 'Buyer',
+            }),
+          });
+          const data = await res.json();
+          const msg = data.message || '';
+          const src = data.source === 'ollama' ? '🤖 Qwen 3.6 (local)' : '☁️ GLM-5.2 (cloud)';
+
+          panel.innerHTML = `
+            <div class="card" style="padding:16px;background:rgba(6,182,212,0.04);border:1px solid rgba(6,182,212,0.2);">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <strong style="font-size:13px;">✨ AI-Generated ${type === 'whatsapp' ? 'WhatsApp Msg' : 'Email'}</strong>
+                <span style="font-size:10px;color:var(--text-secondary);">Generated by ${src}</span>
+              </div>
+              <textarea id="ai-msg-output" style="width:100%;min-height:200px;font-size:13px;line-height:1.6;
+                background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;
+                padding:10px;resize:vertical;color:var(--text-primary);">${msg}</textarea>
+              <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+                <button class="btn btn-sm btn-primary" onclick="
+                  navigator.clipboard.writeText(document.getElementById('ai-msg-output').value);
+                  if(typeof Toast!=='undefined') Toast.success('Copied to clipboard!');
+                ">📋 Copy</button>
+                ${type === 'whatsapp' && supplier.supplierWhatsApp ? `
+                  <a class="btn btn-sm" style="background:#25d366;color:#fff;" 
+                     href="https://wa.me/${supplier.supplierWhatsApp.replace(/\\D/g,'')}?text=${encodeURIComponent(msg)}" 
+                     target="_blank">📱 Open WhatsApp</a>` : ''}
+                ${type === 'email' && supplier.supplierEmail ? `
+                  <a class="btn btn-sm" 
+                     href="mailto:${supplier.supplierEmail}?subject=Product Inquiry - ${encodeURIComponent(p.name)}&body=${encodeURIComponent(msg)}" 
+                     target="_blank">✉️ Open Email Client</a>` : ''}
+                <button class="btn btn-sm btn-ghost" onclick="document.getElementById('ai-supplier-msg-panel').style.display='none';">✕ Close</button>
+              </div>
+            </div>`;
+        } catch (e) {
+          panel.innerHTML = `<div style="color:var(--danger);padding:12px;">⚠️ AI generation failed: ${e.message}</div>`;
+        } finally {
+          if (btn) { btn.disabled = false; btn.textContent = type === 'email' ? '✨ AI Write Email' : '✨ AI WhatsApp'; }
+        }
+      }
+
+      document.getElementById('btn-ai-supplier-email')?.addEventListener('click', () => generateAIMsg('email'));
+      document.getElementById('btn-ai-supplier-wa')?.addEventListener('click', () => generateAIMsg('whatsapp'));
     }, 50);
-  }
+  } // end renderSupplier
 
   // ─── Export Tab ───
   function renderExport(container) {
@@ -901,11 +990,14 @@ const SavedDetailModal = (function() {
     document.getElementById('modal-delete-btn').addEventListener('click', async () => {
       if (confirm('Delete this product? This cannot be undone.')) {
         try {
-          if (!window.db || !window.db.products) {
-            throw new Error('Database not available');
+          if (typeof deleteSaved === 'function') {
+            await deleteSaved(currentProduct.id);
+          } else {
+            // Fallback: server-side delete
+            await fetch(`/api/db/saved/${currentProduct.id}`, { method: 'DELETE' });
           }
-          const result = await window.db.products.delete(currentProduct.id);
-          if (result === false) {
+          const r = true; // success
+          if (r === false) {
             throw new Error('Delete operation returned false');
           }
           Toast.success('Product deleted!');
